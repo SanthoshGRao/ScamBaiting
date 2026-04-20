@@ -1,0 +1,92 @@
+{
+  "categories": [
+    {
+      "id": "financial_fraud",
+      "label": "Financial Fraud",
+      "description": "UPI, lottery, advance fee, investment scams",
+      "keywords": [
+        "lottery", "prize", "winner", "won", "UPI", "transfer", "crore",
+        "lakh", "investment", "guaranteed returns", "double your money",
+        "account details", "bank transfer", "processing fee", "advance fee",
+        "congratulations", "claim your", "selected", "lucky draw"
+      ],
+      "patterns": ["\\b\\d+\\s*(lakh|crore|rupees|rs|inr)\\b", "\\bUPI\\s*:?\\s*\\S+@\\S+"],
+      "weight_boost": 1.2
+    },
+    {
+      "id": "phishing",
+      "label": "Phishing",
+      "description": "Fake links, credential theft, login pages",
+      "keywords": [
+        "verify", "click here", "update account", "suspended", "expired",
+        "confirm your identity", "unusual activity", "security alert",
+        "reset password", "login now", "verify your", "unauthorized access"
+      ],
+      "patterns": [
+        "https?://[a-z0-9.-]*\\.(tk|ml|ga|cf|gq|xyz|top|buzz)",
+        "https?://bit\\.ly/\\S+",
+        "https?://tinyurl\\.com/\\S+"
+      ],
+      "weight_boost": 1.3
+    },
+    {
+      "id": "impersonation",
+      "label": "Impersonation",
+      "description": "Fake bank, government, delivery notifications",
+      "keywords": [
+        "India Post", "SBI", "RBI", "customs", "Amazon delivery",
+        "KYC update", "PAN card", "Aadhaar", "income tax", "GST",
+        "delivery failed", "your package", "customs duty"
+      ],
+      "patterns": [
+        "(your\\s+package|delivery\\s+failed|KYC\\s+update)",
+        "(SBI|HDFC|ICICI|RBI)\\s+(alert|notice|update)"
+      ],
+      "weight_boost": 1.1
+    },
+    {
+      "id": "job_scam",
+      "label": "Job / Internship Scam",
+      "description": "Fake job offers, paid internships, work-from-home",
+      "keywords": [
+        "work from home", "easy money", "hiring", "per day",
+        "part time job", "earn daily", "no experience needed",
+        "data entry", "typing job", "registration fee"
+      ],
+      "patterns": [
+        "earn\\s+\\d+.*per\\s+(day|hour|month)",
+        "\\b(₹|rs\\.?)\\s*\\d+\\s*(per|/|a)\\s*(day|hour)"
+      ],
+      "weight_boost": 1.0
+    },
+    {
+      "id": "tech_support",
+      "label": "Tech Support Scam",
+      "description": "Fake virus alerts, remote access requests",
+      "keywords": [
+        "virus detected", "call support", "remote access", "TeamViewer",
+        "AnyDesk", "your computer", "has been hacked", "infected",
+        "Microsoft support", "Apple support", "tech support"
+      ],
+      "patterns": [
+        "your\\s+(computer|phone|device)\\s+(is|has been)\\s+(infected|hacked|compromised)"
+      ],
+      "weight_boost": 1.0
+    },
+    {
+      "id": "romance_scam",
+      "label": "Romance / Emotional Scam",
+      "description": "Emotional manipulation for money",
+      "keywords": [
+        "I love you", "send money", "hospital", "stuck abroad",
+        "emergency", "help me", "stranded", "medical bills",
+        "Western Union", "gift cards", "MoneyGram"
+      ],
+      "patterns": [
+        "(need|send)\\s+money\\s+(urgently|immediately|now)",
+        "(hospital|emergency|accident).*money"
+      ],
+      "weight_boost": 0.9
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="2dp"
+    android:paddingVertical="8dp">
+
+    <!-- Scammer message (left) -->
+    <LinearLayout
+        android:id="@+id/layoutScammer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:gravity="top"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <FrameLayout
+            android:layout_width="@dimen/chat_avatar_size"
+            android:layout_height="@dimen/chat_avatar_size"
+            android:layout_marginEnd="10dp">
+
+            <ImageView
+                android:id="@+id/ivScammerAvatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_avatar_scammer"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no"
+                android:padding="9dp"
+                android:scaleType="fitCenter"
+                app:srcCompat="@drawable/ic_warning"
+                app:tint="@color/risk_high" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxWidth="@dimen/chat_bubble_max_width"
+            android:background="@drawable/bg_chat_scammer"
+            android:elevation="1dp"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
+
+            <TextView
+                android:id="@+id/tvScammerLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:letterSpacing="0.03"
+                android:text="Scammer"
+                android:textAllCaps="true"
+                android:textColor="@color/risk_high"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvScammerMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.08"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                tools:text="Congratulations! You've been selected as our GRAND PRIZE WINNER." />
+
+            <TextView
+                android:id="@+id/tvScammerTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="8dp"
+                android:alpha="0.75"
+                android:textColor="@color/text_hint"
+                android:textSize="11sp"
+                tools:text="14:02" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- AI / bait persona message (right) -->
+    <LinearLayout
+        android:id="@+id/layoutAI"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:gravity="top"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        tools:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:maxWidth="@dimen/chat_bubble_max_width"
+            android:background="@drawable/bg_chat_ai"
+            android:elevation="1dp"
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
+
+            <TextView
+                android:id="@+id/tvAILabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:letterSpacing="0.03"
+                android:text="AI • Persona"
+                android:textAllCaps="true"
+                android:textColor="@color/accent"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvAIMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.08"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                tools:text="omg i won? what did i win" />
+
+            <TextView
+                android:id="@+id/tvAITime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="8dp"
+                android:alpha="0.75"
+                android:textColor="@color/text_hint"
+                android:textSize="11sp"
+                tools:text="14:03" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="@dimen/chat_avatar_size"
+            android:layout_height="@dimen/chat_avatar_size">
+
+            <ImageView
+                android:id="@+id/ivAIAvatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_avatar_ai"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no"
+                android:padding="9dp"
+                android:scaleType="fitCenter"
+                app:srcCompat="@drawable/ic_shield"
+                app:tint="@color/primary" />
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

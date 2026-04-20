@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="chat_bubble_max_width">300dp</dimen>
+    <dimen name="chat_avatar_size">40dp</dimen>
+    <dimen name="chat_bubble_radius">18dp</dimen>
+    <!-- Persona picker: scroll region cap so all options + dialog buttons fit -->
+    <dimen name="persona_picker_scroll_max">400dp</dimen>
+</resources>

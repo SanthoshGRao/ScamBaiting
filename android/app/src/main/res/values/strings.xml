@@ -1,0 +1,173 @@
+<resources>
+    <string name="app_name">ScamShield</string>
+    <string name="enable_protection">Enable Protection</string>
+    <string name="protection_active">Protection Active</string>
+    <string name="protection_inactive">Protection Inactive</string>
+    <string name="grant_access">Grant Notification Access</string>
+    <string name="protection_active_btn">Protection Active</string>
+    <string name="recent_scans">Recent Scans</string>
+    <string name="no_scans_yet">No scans yet. ScamShield will analyze incoming messages automatically.</string>
+    <string name="total_scanned">Total Scanned</string>
+    <string name="threats_blocked">Threats Blocked</string>
+    <string name="scam_baited">Scammers Baited</string>
+    <string name="detection_detail">Detection Detail</string>
+    <string name="confidence_label">Confidence</string>
+    <string name="category_label">Category</string>
+    <string name="sender_label">Sender</string>
+    <string name="status_label">Status</string>
+
+    <!-- Detection results -->
+    <string name="verdict_scam">SCAM DETECTED</string>
+    <string name="verdict_safe">Looks Safe</string>
+    <string name="verdict_suspicious">Suspicious</string>
+
+    <!-- Navigation -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_analytics">Analytics</string>
+    <string name="nav_simulator">Simulator</string>
+    <string name="nav_settings">Settings</string>
+    <string name="scammers_empty">No verified scammers yet. High-risk numbers appear here after alerts.</string>
+    <string name="scammers_tracked_count">%d tracked</string>
+
+    <!-- Settings Headers -->
+    <string name="settings_protection">Protection</string>
+    <string name="settings_detection">Detection Tuning</string>
+    <string name="settings_baiting">Baiting Configuration</string>
+    <string name="settings_privacy_data">Privacy &amp; Data</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_about">About</string>
+
+    <!-- Settings — Appearance -->
+    <string name="settings_dark_mode">Dark Theme</string>
+    <string name="settings_dark_mode_desc">On by default; switch off for light mode</string>
+    <string name="chart_legend_detections">Detections</string>
+    <string name="chart_no_data">No trend data yet</string>
+
+    <!-- Settings — Protection -->
+    <string name="settings_notif_access">Notification Access</string>
+    <string name="settings_notif_access_desc">Required for real-time message scanning</string>
+    <string name="settings_realtime_protection">Real-time Protection</string>
+    <string name="settings_realtime_protection_desc">Scan all incoming notifications</string>
+    <string name="settings_auto_bait">Auto-Bait</string>
+    <string name="settings_auto_bait_desc">Automatically engage detected scammers</string>
+    <string name="settings_stealth">Stealth Mode</string>
+    <string name="settings_stealth_desc">Delay responses to appear more human</string>
+    <string name="settings_sound">Sound Alerts</string>
+    <string name="settings_sound_desc">Play sound on scam detection</string>
+    <string name="settings_vibrate">Vibration Alerts</string>
+    <string name="settings_vibrate_desc">Vibrate when scam is detected</string>
+    <string name="settings_overlay">Floating Alert Overlay</string>
+    <string name="settings_overlay_desc">Show popup alert over other apps</string>
+
+    <!-- Settings — Detection -->
+    <string name="settings_sensitivity">Detection Sensitivity</string>
+    <string name="settings_sensitivity_desc">Higher = more aggressive flagging</string>
+    <string name="settings_threshold">Confidence Threshold</string>
+    <string name="settings_threshold_desc">Minimum confidence to flag as scam</string>
+    <string name="sensitivity_value">Level %d</string>
+    <string name="threshold_value">%d%%</string>
+
+    <!-- Settings — Baiting -->
+    <string name="settings_persona">Baiting Persona</string>
+    <string name="settings_persona_desc">AI character used for scam engagement</string>
+    <string name="settings_response_delay">Response Delay</string>
+    <string name="settings_response_delay_desc">Wait time before AI responds</string>
+    <string name="settings_max_replies">Max Replies per Session</string>
+    <string name="settings_max_replies_desc">Simulator and baiting auto-stop after N AI replies (max 20)</string>
+    <string name="settings_auto_report">Auto-Report Scammers</string>
+    <string name="settings_auto_report_desc">Submit scam reports automatically</string>
+    <string name="delay_value">%ds</string>
+    <string name="replies_value">%d replies</string>
+
+    <!-- Settings — Privacy & Data -->
+    <string name="settings_privacy_mode">Privacy Mode</string>
+    <string name="settings_on_device">On-Device Analysis</string>
+    <string name="settings_on_device_desc">No data leaves your device</string>
+    <string name="settings_data_retention">Data Retention</string>
+    <string name="settings_data_retention_desc">Auto-delete logs after N days</string>
+    <string name="retention_value">%d days</string>
+    <string name="settings_clear_cache">Clear Detection Cache</string>
+    <string name="settings_reload_keywords">Reload Keyword Database</string>
+    <string name="settings_export_logs">Export Baiting Logs</string>
+    <string name="settings_export_desc">Share logs as text file</string>
+    <string name="privacy_badge_on">On-device analysis active</string>
+    <string name="privacy_badge_off">Cloud analysis enabled</string>
+
+    <!-- Personas -->
+    <string name="persona_busy_professional">Busy Professional</string>
+    <string name="persona_busy_professional_desc">Acts distracted, gives very short replies in a hurry</string>
+    <string name="persona_skeptical_buyer">Skeptical Buyer</string>
+    <string name="persona_skeptical_buyer_desc">Cautious and doubtful, demands strict proof</string>
+    <string name="persona_half_understanding_user">Half-Understanding User</string>
+    <string name="persona_half_understanding_user_desc">Partially understands, makes mistakes and repeats</string>
+    <string name="persona_lonely_conversationalist">Lonely Conversationalist</string>
+    <string name="persona_lonely_conversationalist_desc">Talkative, goes off-topic and asks personal questions</string>
+    <string name="persona_hopeful_opportunity_seeker">Hopeful Opportunity Seeker</string>
+    <string name="persona_hopeful_opportunity_seeker_desc">Excited, incredibly trusting, asks eager questions</string>
+    <string name="persona_curious_user">Curious User</string>
+    <string name="persona_curious_user_desc">Curious, asks simple follow-ups, not very tech-savvy</string>
+    <string name="persona_picker_title">Choose persona</string>
+    <string name="persona_picker_subtitle">This shapes tone and style when ScamShield auto-replies for baiting.</string>
+    <string name="persona_picker_save">Save</string>
+    <string name="persona_picker_saved_fmt">Saved: %1$s</string>
+    <string name="persona_selected_cd">Selected</string>
+
+    <!-- Analytics -->
+    <string name="analytics_title">Analytics</string>
+    <string name="detection_history">Detection History</string>
+    <string name="flagged_senders">Flagged Senders</string>
+    <string name="filter_all">All</string>
+    <string name="filter_scam">Scam</string>
+    <string name="filter_safe">Safe</string>
+    <string name="filter_baited">Baited</string>
+    <string name="scam_types_title">Scam Type Breakdown</string>
+    <string name="persona_effectiveness">Persona Effectiveness</string>
+    <string name="trend_up">↑ %d%% more threats this week</string>
+    <string name="trend_down">↓ %d%% fewer threats this week</string>
+
+    <!-- Explainable AI -->
+    <string name="explain_title">Why this was flagged</string>
+    <string name="explain_keywords">Suspicious keywords detected</string>
+    <string name="explain_urgency">Urgency phrases found</string>
+    <string name="explain_link">Suspicious link detected</string>
+    <string name="explain_otp">OTP/verification request</string>
+    <string name="explain_sender">Unknown sender pattern</string>
+    <string name="explain_financial">Financial request detected</string>
+    <string name="mark_safe">Mark as Safe</string>
+    <string name="mark_scam">Mark as Scam</string>
+    <string name="marked_safe_toast">Marked as safe — improving future accuracy</string>
+    <string name="marked_scam_toast">Marked as scam — improving future accuracy</string>
+
+    <!-- Simulator -->
+    <string name="simulator_title">Scam Simulator</string>
+    <string name="simulator_desc">Watch AI engage scammers in real-time</string>
+    <string name="simulator_empty_hint">Pick a scenario above, then tap Start to watch the AI engage the scammer in this chat.</string>
+    <string name="simulator_persona_label">Persona</string>
+    <string name="start_simulation">Start Simulation</string>
+    <string name="end_simulation">End Session</string>
+    <string name="scenario_lottery">Lottery Scam</string>
+    <string name="scenario_otp">OTP Fraud</string>
+    <string name="scenario_romance">Romance Scam</string>
+    <string name="scenario_tech">Tech Support</string>
+    <string name="scenario_delivery">Delivery Scam</string>
+    <string name="typing_indicator">Typing</string>
+    <string name="typing_scammer_composing">Scammer is typing</string>
+    <string name="typing_agent_composing">Persona is typing</string>
+    <string name="sim_messages_count">Messages: %d</string>
+    <string name="sim_duration">Duration: %s</string>
+    <string name="sim_round_progress">Round %1$d / %2$d</string>
+    <string name="sim_ai_replies_slider">AI replies this session</string>
+    <string name="sim_continue">Continue chat</string>
+    <string name="choose_scenario">Choose a Scenario</string>
+
+    <!-- Overlay -->
+    <string name="overlay_title">Potential Scam Detected</string>
+    <string name="overlay_confidence">Confidence: %d%%</string>
+    <string name="overlay_dismiss">Dismiss</string>
+    <string name="overlay_foreground_status">Showing alert — tap to open the app</string>
+    <string name="overlay_view">View Details</string>
+
+    <!-- General -->
+    <string name="version_label">v1.0.0</string>
+    <string name="app_tagline">AI-Powered Scam Detection &amp; Response</string>
+</resources>

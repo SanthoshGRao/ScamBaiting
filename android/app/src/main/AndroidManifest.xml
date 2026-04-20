@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ==================== PERMISSIONS ==================== -->
+
+    <!-- Internet for API calls to backend -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Notification access (granted via system settings) -->
+    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- POST_NOTIFICATIONS for Android 13+ (API 33) alert notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Foreground service (if needed for long API calls) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Overlay alert runs as a short foreground service on API 34+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SHORT_SERVICE" />
+
+    <!-- Receive boot complete to re-enable service -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Wake lock for processing during doze (WorkManager) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Overlay permission for floating visual alerts -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- ==================== APPLICATION ==================== -->
+
+    <application
+        android:name=".ScamShieldApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="ScamShield"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ScamShield"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="31">
+
+        <!-- ========== ACTIVITIES ========== -->
+
+        <!-- Main Activity -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.ScamShield">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Detail Activity (opened from notification "View Details") -->
+        <activity
+            android:name=".ui.DetailActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <!-- ========== SERVICES ========== -->
+
+        <!--
+            NotificationListenerService — system-bound service.
+            Requires user to grant notification access in Settings.
+            android:permission ensures only system can bind.
+        -->
+        <service
+            android:name=".service.ScamShieldNotificationService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Overlay Service for visual alerts (foreground so it can start from NLS / background) -->
+        <service
+            android:name=".service.ScamOverlayService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+
+        <!-- ========== BROADCAST RECEIVERS ========== -->
+
+        <!-- Handles notification action buttons (Block, Bait, View, Dismiss) -->
+        <receiver
+            android:name=".service.ScamActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.scamshield.ACTION_DISMISS" />
+                <action android:name="com.scamshield.ACTION_VIEW_DETAILS" />
+                <action android:name="com.scamshield.ACTION_BLOCK" />
+                <action android:name="com.scamshield.ACTION_BAIT" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Boot receiver to ensure service restarts after reboot -->
+        <receiver
+            android:name=".service.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name=".ui.BaitingLogActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ScamShield" />
+        <activity
+            android:name=".ui.MessageInsightsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ScamShield" />
+
+    </application>
+
+</manifest>

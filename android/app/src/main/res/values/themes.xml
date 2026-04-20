@@ -1,0 +1,152 @@
+<resources>
+    <!-- Base empty style to avoid AAPT "style/ScamShield not found" error due to dot notation implicitly referencing a missing parent -->
+    <style name="ScamShield" />
+    <style name="Theme.ScamShield" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary colors -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <!-- Secondary -->
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <!-- Background -->
+        <item name="android:colorBackground">@color/bg_main</item>
+        <item name="colorSurface">@color/surface_bg</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/bg_main</item>
+        <item name="android:navigationBarColor">@color/nav_bg</item>
+
+        <!-- Ripple -->
+        <item name="android:colorControlHighlight">@color/primary_30</item>
+
+        <!-- Activity transitions -->
+        <item name="android:windowAnimationStyle">@style/ScamShieldWindowAnim</item>
+        <item name="android:windowContentTransitions">true</item>
+
+        <!-- Material Slider -->
+        <item name="sliderStyle">@style/ScamShield.Slider</item>
+        <!-- Material Switch -->
+        <item name="materialSwitchStyle">@style/ScamShield.Switch</item>
+        <!-- Chip -->
+        <item name="chipStyle">@style/ScamShield.Chip</item>
+
+        <!-- Bottom Sheet -->
+        <item name="bottomSheetDialogTheme">@style/ScamShield.BottomSheet</item>
+    </style>
+
+    <!-- Activity transitions -->
+    <style name="ScamShieldWindowAnim" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/slide_in_right</item>
+        <item name="android:activityOpenExitAnimation">@anim/fade_out</item>
+        <item name="android:activityCloseEnterAnimation">@anim/fade_in</item>
+        <item name="android:activityCloseExitAnimation">@anim/slide_out_left</item>
+    </style>
+
+    <!-- Slider Style -->
+    <style name="ScamShield.Slider" parent="Widget.Material3.Slider">
+        <item name="trackColorActive">@color/primary</item>
+        <item name="trackColorInactive">@color/slider_track</item>
+        <item name="thumbColor">@color/primary</item>
+        <item name="haloColor">@color/primary_30</item>
+        <item name="labelStyle">@style/ScamShield.SliderLabel</item>
+    </style>
+
+    <style name="ScamShield.SliderLabel" parent="Widget.Material3.Tooltip">
+        <item name="backgroundTint">@color/primary</item>
+    </style>
+
+    <!-- Switch Style -->
+    <style name="ScamShield.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="thumbTint">@color/white</item>
+        <item name="trackTint">@color/switch_track_off</item>
+    </style>
+
+    <!-- Filter Chip Style -->
+    <style name="ScamShield.Chip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/chip_bg</item>
+        <item name="chipStrokeColor">@color/primary_30</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="checkedIconTint">@color/white</item>
+    </style>
+
+    <style name="ScamShield.Chip.Selected" parent="ScamShield.Chip">
+        <item name="chipBackgroundColor">@color/primary</item>
+        <item name="android:textColor">@color/white</item>
+    </style>
+
+    <!-- Card Styles -->
+    <style name="ScamShield.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">@color/card_bg</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">4dp</item>
+    </style>
+
+    <style name="ScamShield.Card.Hero" parent="ScamShield.Card">
+        <item name="cardElevation">8dp</item>
+    </style>
+
+    <style name="ScamShield.Card.Compact" parent="ScamShield.Card">
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">2dp</item>
+    </style>
+
+    <!-- Simulator chat window (Material3 card corners) -->
+    <style name="ShapeAppearance.Simulator.ChatWindow" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">22dp</item>
+        <item name="cornerSizeTopRight">22dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Simulator.BottomBar" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">20dp</item>
+        <item name="cornerSizeTopRight">20dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+
+    <!-- Bottom Sheet -->
+    <style name="ScamShield.BottomSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/ScamShield.BottomSheetStyle</item>
+        <item name="android:colorBackground">@color/surface_bg</item>
+    </style>
+
+    <style name="ScamShield.BottomSheetStyle" parent="Widget.Material3.BottomSheet">
+        <item name="backgroundTint">@color/surface_bg</item>
+        <item name="shapeAppearance">@style/ScamShield.BottomSheetShape</item>
+    </style>
+
+    <style name="ScamShield.BottomSheetShape" parent="ShapeAppearance.Material3.Corner.ExtraLarge">
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeTopRight">24dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+
+    <!-- Section Header -->
+    <style name="ScamShield.SectionHeader">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/primary</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:paddingTop">20dp</item>
+        <item name="android:paddingBottom">10dp</item>
+    </style>
+
+    <!-- Bubble Shapes -->
+    <style name="ScamShield.Bubble.Scammer" parent="">
+        <item name="android:background">@drawable/bg_chat_scammer</item>
+    </style>
+
+    <style name="ScamShield.Bubble.AI" parent="">
+        <item name="android:background">@drawable/bg_chat_ai</item>
+    </style>
+</resources>

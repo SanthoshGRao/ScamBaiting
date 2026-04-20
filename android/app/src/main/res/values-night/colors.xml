@@ -1,0 +1,100 @@
+<resources>
+    <!-- Brand Colors — Premium Dark Theme -->
+    <color name="primary">#FF6C63FF</color>
+    <color name="primary_dark">#FF5A52E0</color>
+    <color name="primary_light">#FF9B94FF</color>
+    <color name="primary_30">#4D6C63FF</color>
+    <color name="primary_10">#1A6C63FF</color>
+    <color name="accent">#FF00D9A6</color>
+    <color name="accent_dark">#FF00B88A</color>
+    <color name="accent_light">#FF33E4BE</color>
+
+    <!-- Gradient Colors -->
+    <color name="gradient_start">#FF6C63FF</color>
+    <color name="gradient_mid">#FF8B5CF6</color>
+    <color name="gradient_end">#FF00D9A6</color>
+    <color name="gradient_hero_start">#FF1A1145</color>
+    <color name="gradient_hero_end">#FF0D2137</color>
+
+    <!-- Backgrounds -->
+    <color name="bg_main">#FF0D0D1A</color>
+    <color name="surface_bg">#FF1A1A2E</color>
+    <color name="card_bg">#FF16213E</color>
+    <color name="card_elevated">#FF1F2A45</color>
+    <color name="card_highlight">#FF1E2B4A</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#B3FFFFFF</color>
+    <color name="text_hint">#66FFFFFF</color>
+    <color name="text_disabled">#33FFFFFF</color>
+
+    <!-- Risk Colors -->
+    <color name="risk_high">#FFFF4757</color>
+    <color name="risk_high_bg">#1AFF4757</color>
+    <color name="risk_medium">#FFFFA502</color>
+    <color name="risk_medium_bg">#1AFFA502</color>
+    <color name="risk_low">#FF2ED573</color>
+    <color name="risk_low_bg">#1A2ED573</color>
+    <color name="risk_safe">#FF00D9A6</color>
+    <color name="risk_safe_bg">#1A00D9A6</color>
+
+    <!-- Status -->
+    <color name="status_active">#FF00D9A6</color>
+    <color name="status_inactive">#FFFF4757</color>
+
+    <!-- Dividers & Surfaces -->
+    <color name="divider">#1AFFFFFF</color>
+    <color name="overlay_bg">#CC0D0D1A</color>
+    <color name="shimmer">#33FFFFFF</color>
+
+    <!-- Slider & Controls -->
+    <color name="slider_track">#33FFFFFF</color>
+    <color name="slider_thumb">#FF6C63FF</color>
+    <color name="switch_track_on">#FF6C63FF</color>
+    <color name="switch_track_off">#33FFFFFF</color>
+    <color name="chip_bg">#FF1F2A45</color>
+    <color name="chip_selected_bg">#FF6C63FF</color>
+
+    <!-- Persona Accent Colors -->
+    <color name="persona_uncle">#FFFFA502</color>
+    <color name="persona_slow">#FF00D9A6</color>
+    <color name="persona_victim">#FFFF6B81</color>
+    <color name="persona_analyst">#FF70A1FF</color>
+    <color name="persona_troll">#FFECCC68</color>
+
+    <!-- Badge Colors -->
+    <color name="badge_bg">#FFFF4757</color>
+    <color name="badge_text">#FFFFFFFF</color>
+
+    <!-- Bottom Nav -->
+    <color name="nav_bg">#FF0F0F23</color>
+    <color name="nav_active">#FF6C63FF</color>
+    <color name="nav_inactive">#66FFFFFF</color>
+    <color name="nav_divider">#1A6C63FF</color>
+
+    <!-- Chat Bubbles (Simulator) -->
+    <color name="bubble_scammer">#FF2D1B4E</color>
+    <color name="bubble_ai">#FF163B56</color>
+    <color name="bubble_system">#FF1A1A2E</color>
+    <color name="chat_label_scammer">#FFFF8A80</color>
+    <color name="chat_label_ai">#FF80CBC4</color>
+    <color name="chat_on_bubble">#FFFFFFFF</color>
+    <color name="chat_meta">#B0BEC5</color>
+    <color name="hero_text_primary">#FFFFFFFF</color>
+    <color name="hero_text_secondary">#E6FFFFFF</color>
+
+    <!-- Overlay -->
+    <color name="overlay_card_bg">#E6161E38</color>
+    <color name="overlay_border_high">#FFFF4757</color>
+    <color name="overlay_border_medium">#FFFFA502</color>
+
+    <!-- Charts (dark surfaces — high contrast ticks & grid) -->
+    <color name="chart_axis_line">#99FFFFFF</color>
+    <color name="chart_grid">#28FFFFFF</color>
+
+    <!-- Standard -->
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+    <color name="transparent">#00000000</color>
+</resources>

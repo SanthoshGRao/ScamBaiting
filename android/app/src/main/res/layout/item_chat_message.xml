@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <!-- Scammer Message (Left aligned) -->
+    <LinearLayout
+        android:id="@+id/llScammerMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:background="@drawable/bg_chat_scammer"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:layout_marginEnd="40dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Scammer"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/chat_label_scammer"
+            android:layout_marginBottom="4dp"/>
+
+        <TextView
+            android:id="@+id/tvScammerText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/chat_on_bubble"
+            android:textSize="14sp"/>
+    </LinearLayout>
+
+    <!-- AI Message (Right aligned) -->
+    <LinearLayout
+        android:id="@+id/llAiMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:background="@drawable/bg_chat_ai"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:layout_marginStart="40dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI Persona"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/chat_label_ai"
+            android:layout_marginBottom="4dp"
+            android:layout_gravity="end"/>
+
+        <TextView
+            android:id="@+id/tvAiText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/chat_on_bubble"
+            android:textSize="14sp"/>
+    </LinearLayout>
+
+</LinearLayout>
