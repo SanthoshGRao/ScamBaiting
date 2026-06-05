@@ -34,6 +34,32 @@ class RuleEngine @Inject constructor(
         private const val TAG = "RuleEngine"
         private const val MAX_CONFIDENCE = 1.0f
         private const val SENDER_BOOST = 0.15f // Boost for known scam senders
+
+        /**
+         * Safe phrases that are commonly found in benign messages.
+         * If a message contains ONLY these types of content (birthday wishes,
+         * festival greetings, event invitations), it should not be flagged.
+         */
+        private val SAFE_PHRASES = listOf(
+            "happy birthday", "birthday wishes", "birthday greetings",
+            "many happy returns", "wish you a happy", "bday",
+            "happy anniversary", "wedding anniversary",
+            "happy new year", "happy diwali", "happy holi", "happy christmas",
+            "merry christmas", "happy eid", "eid mubarak", "ramadan mubarak",
+            "happy pongal", "happy onam", "happy navratri", "happy ganesh",
+            "happy raksha", "happy independence", "happy republic",
+            "happy thanksgiving", "happy easter", "happy valentine",
+            "happy ugadi", "happy sankranti", "happy dasara", "happy deepavali",
+            "best wishes", "warm wishes", "warmest wishes",
+            "wishing you", "wish you all the best",
+            "congratulations on your wedding", "congratulations on your baby",
+            "congratulations on your promotion", "congratulations on your graduation",
+            "get well soon", "condolences", "rest in peace",
+            "good morning", "good night", "good evening",
+            "thank you", "thanks for",
+            "you are invited", "cordially invited", "rsvp",
+            "miss you", "love you", "thinking of you",
+        )
     }
 
     /**
@@ -72,10 +98,24 @@ class RuleEngine @Inject constructor(
             // Determine category hints (top categories by match count)
             val categoryHints = extractCategoryHints(allMatches)
 
-            // Determine if suspicious
-            val isSuspicious = confidence > 0.25f || allMatches.size >= 2
+            // Determine if suspicious — either meaningful confidence OR multiple rule matches
+            // Use OR to avoid missing scams with single strong signals
+            val isSuspicious = confidence > 0.30f || allMatches.size >= 2
 
             val elapsed = (System.nanoTime() - startTime) / 1_000_000.0
+
+            // Safe-phrase suppression: if the message matches a benign greeting pattern
+            // and has no strong scam signals, suppress the verdict
+            if (isSuspicious && confidence < 0.65f && isSafePhrase(text)) {
+                Log.i(TAG, "Safe phrase detected, suppressing low-confidence verdict: conf=%.2f".format(confidence))
+                return@withContext RuleVerdict(
+                    isSuspicious = false,
+                    confidence = 0f,
+                    matchedRules = emptyList(),
+                    categoryHints = emptyList()
+                )
+            }
+
             Log.i(
                 TAG,
                 "Analysis: ${allMatches.size} matches, conf=%.2f, " +
@@ -230,5 +270,14 @@ class RuleEngine @Inject constructor(
             .sortedByDescending { it.value }
             .map { it.key }
             .take(3)
+    }
+
+    /**
+     * Check if the message contains safe/benign phrases that are unlikely to be scams.
+     * Matches against known greeting patterns, birthday wishes, festival messages, etc.
+     */
+    private fun isSafePhrase(text: String): Boolean {
+        val lower = text.lowercase()
+        return SAFE_PHRASES.any { lower.contains(it) }
     }
 }

@@ -46,6 +46,9 @@ class MainViewModel @Inject constructor(
     companion object {
         private const val TAG = "MainViewModel"
         private const val PREFS = "feedback_store"
+        /** Bump so [ScamShieldNotificationService] clears in-memory dedup / alert cooldown maps. */
+        private const val PREFS_APP = "scamshield_prefs"
+        private const val KEY_DETECTION_RUNTIME_GENERATION = "detection_runtime_generation"
     }
 
     // --- Dashboard ---
@@ -83,7 +86,8 @@ class MainViewModel @Inject constructor(
                 } else {
                     detectionRepository.analyzeMessage(
                         text = text,
-                        source = InputSource.MANUAL
+                        source = InputSource.MANUAL,
+                        skipLocalCache = true,
                     )
                 }
                 _analysisResult.postValue(result)
@@ -138,6 +142,14 @@ class MainViewModel @Inject constructor(
      */
     fun clearCache() {
         viewModelScope.launch {
+            val appPrefs = getApplication<Application>().getSharedPreferences(PREFS_APP, Context.MODE_PRIVATE)
+            appPrefs.edit()
+                .putLong(
+                    KEY_DETECTION_RUNTIME_GENERATION,
+                    appPrefs.getLong(KEY_DETECTION_RUNTIME_GENERATION, 0L) + 1
+                )
+                .apply()
+
             detectionRepository.clearCache()
             scammerRepository.clearAllLocal()
             senderHistoryDao.deleteAll()

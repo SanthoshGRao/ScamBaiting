@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 # --- Enums ---
@@ -142,6 +142,10 @@ class DetectionVerdict(BaseModel):
     language: str = "en"
     source: InputSource = InputSource.MANUAL
     detection_mode: DetectionMode = DetectionMode.RULE_ONLY
+    # Media analysis results
+    media_risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    media_flags: list[str] = Field(default_factory=list)
+    media_type_detected: str | None = None
 
     @property
     def is_actionable(self) -> bool:
@@ -153,12 +157,25 @@ class DetectionVerdict(BaseModel):
 
 class DetectionRequest(BaseModel):
     """API request body for /api/v1/detect endpoint."""
+
     text: str = Field(..., min_length=1, max_length=5000)
     source: InputSource = InputSource.MANUAL
     sender: str | None = None
-    language_hint: str | None = None
-    rule_verdict: RuleVerdict | None = None
-    privacy_mode: bool = False
+    language_hint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("language_hint", "languageHint"),
+    )
+    rule_verdict: RuleVerdict | None = Field(
+        default=None,
+        validation_alias=AliasChoices("rule_verdict", "ruleVerdict"),
+    )
+    privacy_mode: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("privacy_mode", "privacyMode"),
+    )
+    # Media/file analysis fields
+    media_type: str | None = Field(default=None, description="image, video, document, apk, link, audio")
+    media_filename: str | None = Field(default=None, description="Original filename if available")
 
 
 class DetectionResponse(BaseModel):

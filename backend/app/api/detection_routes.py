@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -33,26 +34,43 @@ router = APIRouter(
     tags=["detection"],
 )
 
+# One shared LLM chain per process — avoids reconnect storms / duplicate clients on every notify.
+_detection_llm_chain: DetectionService | None = None
+_detection_llm_lock = threading.Lock()
+
+
+def _get_detection_llm_chain() -> DetectionService | None:
+    """Lazy singleton LLM classifier for detection (thread-safe)."""
+    global _detection_llm_chain
+    if _detection_llm_chain is not None:
+        return _detection_llm_chain
+    with _detection_llm_lock:
+        if _detection_llm_chain is not None:
+            return _detection_llm_chain
+        try:
+            llm_settings = LLMSettings()
+            groq_settings = LLMSettings(llm_model=llm_settings.detection_groq_model)
+            openai_settings = LLMSettings(llm_model=llm_settings.detection_openai_fallback_model)
+            primary = create_llm_provider(provider="groq", settings=groq_settings)
+            backup = create_llm_provider(provider="openai", settings=openai_settings)
+            _detection_llm_chain = DetectionService(
+                primary_provider=primary,
+                backup_provider=backup,
+                fallback_threshold=0.55,
+                fallback_min_chars=20,
+            )
+        except Exception as exc:
+            logger.warning("LLM provider init failed: %s — running rule-only", exc)
+            _detection_llm_chain = None
+        return _detection_llm_chain
+
+
 def build_detection_agent(db: Session) -> DetectionAgent:
     settings = DetectionSettings()
     normalizer = InputNormalizer(default_language=settings.default_language)
     sanitizer = PIISanitizer()
     persistence = PersistenceService(db)
-    try:
-        llm_settings = LLMSettings()
-        groq_settings = LLMSettings(llm_model=llm_settings.detection_groq_model)
-        openai_settings = LLMSettings(llm_model=llm_settings.detection_openai_fallback_model)
-        primary = create_llm_provider(provider="groq", settings=groq_settings)
-        backup = create_llm_provider(provider="openai", settings=openai_settings)
-        llm_provider = DetectionService(
-            primary_provider=primary,
-            backup_provider=backup,
-            fallback_threshold=0.55,
-            fallback_min_chars=20,
-        )
-    except Exception as exc:
-        logger.warning("LLM provider init failed: %s — running rule-only", exc)
-        llm_provider = None
+    llm_provider = _get_detection_llm_chain()
     return DetectionAgent(
         settings=settings,
         normalizer=normalizer,

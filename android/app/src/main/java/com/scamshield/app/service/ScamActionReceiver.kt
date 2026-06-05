@@ -7,6 +7,7 @@ import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import com.scamshield.app.data.local.dao.SenderHistoryDao
+import com.scamshield.app.data.ScammerRepository
 import com.scamshield.app.service.BaitingManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,8 @@ class ScamActionReceiver : BroadcastReceiver() {
 
     @Inject lateinit var senderHistoryDao: SenderHistoryDao
     @Inject lateinit var baitingManager: BaitingManager
+    @Inject lateinit var scammerRepository: ScammerRepository
+    @Inject lateinit var alertNotificationManager: AlertNotificationManager
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -52,20 +55,24 @@ class ScamActionReceiver : BroadcastReceiver() {
         when (action) {
             AlertNotificationManager.ACTION_DISMISS -> {
                 dismissNotification(context, notificationId)
+                alertNotificationManager.clearPendingScamAlertTracking(sender)
             }
 
             AlertNotificationManager.ACTION_VIEW -> {
                 dismissNotification(context, notificationId)
+                alertNotificationManager.clearPendingScamAlertTracking(sender)
                 openDetailScreen(context, sender, category, confidence)
             }
 
             AlertNotificationManager.ACTION_BLOCK -> {
                 dismissNotification(context, notificationId)
+                alertNotificationManager.clearPendingScamAlertTracking(sender)
                 blockSender(context, sender)
             }
 
             AlertNotificationManager.ACTION_BAIT -> {
                 dismissNotification(context, notificationId)
+                alertNotificationManager.clearPendingScamAlertTracking(sender)
                 initiateBaiting(context, sender, category, text)
             }
 
@@ -166,14 +173,25 @@ class ScamActionReceiver : BroadcastReceiver() {
             try {
                 Log.i(TAG, "Bait initiated: sender=$sender, category=$category")
                 
+                // Mark scammer as AI-enabled so subsequent messages route to baiting pipeline
+                scammerRepository.setAiEnabled(sender, true)
+                Log.i(TAG, "Set aiEnabled=true for $sender")
+
                 // Start the baiting session
                 baitingManager.startBaitingSession(sender, initialText)
 
                 kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    // Open the chat UI immediately
+                    val chatIntent = Intent(context, com.scamshield.app.ui.BaitingLogActivity::class.java).apply {
+                        putExtra("sender", sender)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                    context.startActivity(chatIntent)
+
                     Toast.makeText(
                         context,
                         "Scam-baiting session activated for \"$sender\"",
-                        Toast.LENGTH_LONG
+                        Toast.LENGTH_SHORT
                     ).show()
                 }
             } catch (e: Exception) {

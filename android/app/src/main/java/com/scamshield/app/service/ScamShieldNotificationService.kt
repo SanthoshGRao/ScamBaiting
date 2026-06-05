@@ -1,7 +1,10 @@
 package com.scamshield.app.service
 
 import android.content.ComponentName
+import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -13,7 +16,15 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -64,18 +75,51 @@ class ScamShieldNotificationService : NotificationListenerService() {
     private var baitingManager: BaitingManager? = null
     private var isInjected = false
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val rebindRunnable = Runnable {
+        try {
+            requestRebind(ComponentName(this@ScamShieldNotificationService, ScamShieldNotificationService::class.java))
+            Log.i(TAG, "requestRebind scheduled after disconnect")
+        } catch (e: Exception) {
+            Log.e(TAG, "requestRebind failed", e)
+        }
+    }
+
     private val serviceScope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default + CoroutineName("ScamShieldNLS")
+        SupervisorJob() +
+            Dispatchers.Default +
+            CoroutineName("ScamShieldNLS") +
+            CoroutineExceptionHandler { _, t ->
+                Log.e(TAG, "Notification pipeline coroutine failed (listener stays bound)", t)
+            }
     )
 
     private val recentHashes = ConcurrentHashMap<String, Long>()
+    private val dedupLock = Any()
     private val lastScamAlertBySender = ConcurrentHashMap<String, Long>()
+    /** Serialize quick→full alert logic per sender so cooldown + scamAlertShown stay consistent under concurrency. */
+    private val senderPipelineMutex = ConcurrentHashMap<String, Mutex>()
 
     // --- Per-sender conversation memory for multi-message correlation ---
     private data class TimestampedMessage(val text: String, val timestamp: Long)
     private val senderMessageBuffer = ConcurrentHashMap<String, MutableList<TimestampedMessage>>()
     private val CONTEXT_WINDOW_MS = 10 * 60 * 1000L // 10 minutes
     private val MAX_CONTEXT_MESSAGES = 3
+
+    /** Synced with prefs when user clears detection cache — clears dedup/cooldown so sandbox etc. can re-fire. */
+    private var appliedDetectionRuntimeGeneration: Long = -1L
+
+    private fun applyDetectionRuntimeGenerationResetIfNeeded() {
+        val prefs = applicationContext.getSharedPreferences("scamshield_prefs", Context.MODE_PRIVATE)
+        val gen = prefs.getLong("detection_runtime_generation", 0L)
+        if (gen != appliedDetectionRuntimeGeneration) {
+            recentHashes.clear()
+            lastScamAlertBySender.clear()
+            senderMessageBuffer.clear()
+            appliedDetectionRuntimeGeneration = gen
+            Log.i(TAG, "Detection runtime dedup/cooldown cleared (generation=$gen)")
+        }
+    }
 
     private fun addToSenderBuffer(senderKey: String, text: String) {
         val buffer = senderMessageBuffer.getOrPut(senderKey) { mutableListOf() }
@@ -128,6 +172,7 @@ class ScamShieldNotificationService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        mainHandler.removeCallbacks(rebindRunnable)
         Log.i(TAG, "NotificationListener CONNECTED — monitoring active")
         if (!isInjected) {
             Log.w(TAG, "Re-attempting dependency injection...")
@@ -137,11 +182,14 @@ class ScamShieldNotificationService : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
-        Log.w(TAG, "NotificationListener disconnected")
-        requestRebind(ComponentName(this, ScamShieldNotificationService::class.java))
+        Log.w(TAG, "NotificationListener disconnected — scheduling rebind")
+        // Immediate requestRebind from this callback is unreliable on many OEM ROMs; defer slightly.
+        mainHandler.removeCallbacks(rebindRunnable)
+        mainHandler.postDelayed(rebindRunnable, 750L)
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(rebindRunnable)
         serviceScope.cancel("Service destroyed")
         recentHashes.clear()
         lastScamAlertBySender.clear()
@@ -167,21 +215,35 @@ class ScamShieldNotificationService : NotificationListenerService() {
                 !prefs.getBoolean("privacy_mode", false)
             )
             if (!realtimeEnabled) {
+                Log.d(TAG, "Skipped: real-time protection disabled")
                 return // Real-time protection disabled by user
             }
 
             val packageName = sbn.packageName ?: return
             val notification = sbn.notification ?: return
             
+            // Log ALL incoming notifications for diagnostics
+            val extras = notification.extras
+            val title = extras?.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString()
+            val textPreview = extras?.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString()?.take(60)
+            Log.i(TAG, ">>> NOTIFICATION ARRIVED: pkg=$packageName, title=$title, text=$textPreview, category=${notification.category}")
+
             // Bypass filters for the internal Sandbox Demo notification
             val isSandbox = (notification.channelId == "scam_sandbox" || sbn.id == 999)
 
             if (!isSandbox) {
                 // Don't process our own notifications
-                if (packageName == applicationContext.packageName) return
+                if (packageName == applicationContext.packageName) {
+                    Log.d(TAG, "Skipped: own package notification")
+                    return
+                }
             }
 
-            val parsed = parser!!.parse(packageName, notification, isSandbox) ?: return
+            val parsed = parser!!.parse(packageName, notification, isSandbox)
+            if (parsed == null) {
+                Log.w(TAG, ">>> PARSER RETURNED NULL for $packageName — notification was filtered out")
+                return
+            }
 
             Log.i(
                 TAG,
@@ -192,7 +254,7 @@ class ScamShieldNotificationService : NotificationListenerService() {
             serviceScope.launch {
                 processNotification(parsed)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "CRITICAL ERROR in onNotificationPosted", e)
         }
     }
@@ -205,6 +267,8 @@ class ScamShieldNotificationService : NotificationListenerService() {
 
     private suspend fun processNotification(parsed: ParsedNotification) {
         try {
+            applyDetectionRuntimeGenerationResetIfNeeded()
+
             val repo = detectionRepository ?: run {
                 Log.e(TAG, "detectionRepository is null!")
                 return
@@ -231,15 +295,19 @@ class ScamShieldNotificationService : NotificationListenerService() {
             val senderCandidates = buildSenderCandidates(parsed.sender, parsed.text)
             val senderKey = primarySenderKey(senderCandidates, parsed.text)
 
+            baiting.updateLastPackage(senderKey, parsed.packageName)
+
             // ALWAYS cache reply/read actions FIRST — before any early returns.
             // This ensures we never lose a reply action even if we skip detection.
             if (parsed.replyIntent != null && parsed.remoteInput != null) {
-                baiting.cacheReplyAction(senderKey, parsed.replyIntent, parsed.remoteInput)
+                baiting.cacheReplyAction(senderKey, parsed.packageName, parsed.replyIntent, parsed.remoteInput)
                 Log.d(TAG, "Reply action cached for $senderKey (early)")
             }
             if (parsed.readIntent != null) {
                 baiting.cacheReadAction(senderKey, parsed.readIntent)
             }
+
+            val isDemoMode = prefs.getBoolean("demo_mode", false)
 
             // Never score pure "You" / self labels with no remote phone or handle in the body (defensive).
             if (senderCandidates.isNotEmpty() &&
@@ -253,32 +321,41 @@ class ScamShieldNotificationService : NotificationListenerService() {
             // Add to conversation buffer for multi-message correlation
             addToSenderBuffer(senderKey, parsed.text)
 
-            // Step 0: Intercept if an active baiting session exists
+            // Step 0: Intercept if an active baiting session exists or should be started
             // This prevents redundant detection alerts for active sessions
-            if (baiting.isBaitingActive(senderKey)) {
-                Log.i(TAG, "Baiting session active for $senderKey. Forwarding to AI...")
-                baiting.handleIncomingMessage(senderKey, parsed.text)
-                return // Skip normal detection — no duplicate alerts
-            }
-
+            val isBaitingActive = baiting.isBaitingActive(senderKey)
             val knownScammer = findKnownScammer(scammerRepo, senderCandidates)
-            if (knownScammer != null) {
-                Log.i(TAG, "Message from known scammer $senderKey; running detection for new content.")
-                if (knownScammer.aiEnabled && parsed.replyIntent != null && parsed.remoteInput != null) {
-                    baiting.startBaitingSession(knownScammer.phoneNumber, parsed.text)
-                    // Baiting session owns this conversation; skip scam alerts for this post (avoids spam + double pipeline).
-                    return
+            var skipDetectionForBaiting = false
+
+            if (isBaitingActive) {
+                Log.i(TAG, "Baiting session active for $senderKey. Forwarding to AI...")
+                val timeSinceLast = baiting.getTimeSinceLastUserMessage(senderKey)
+                baiting.handleIncomingMessage(senderKey, parsed.text)
+                
+                if (isDemoMode && timeSinceLast != null && timeSinceLast > 5 * 60 * 1000L) {
+                    Log.i(TAG, "Demo mode is ON and last message was > 5 mins ago. Running detection anyway.")
+                    // Do not set skipDetectionForBaiting, allow fall-through
+                } else {
+                    skipDetectionForBaiting = true
                 }
+            } else if (knownScammer != null && knownScammer.aiEnabled) {
+                Log.i(TAG, "Message from known scammer $senderKey with AI enabled. Starting session.")
+                baiting.startBaitingSession(knownScammer.phoneNumber, parsed.text)
+                skipDetectionForBaiting = true
             }
 
-            // Dedup: same sender + same body within a short window (known senders included).
+            if (skipDetectionForBaiting) {
+                return // Baiting session owns this conversation; skip scam alerts
+            }
+
+            // Dedup: same sender + same body within a short window (atomic — avoids double-processing duplicate posts).
             val hash = hashContent(senderKey, parsed.text)
-            if (isDuplicate(hash)) {
+            if (!isDemoMode && !tryClaimDedupSlot(hash)) {
                 Log.d(TAG, "Dedup: skipping duplicate from ${parsed.packageName}")
                 return
             }
-            markSeen(hash)
 
+            mutexForSender(senderKey).withLock {
             var scamAlertShownThisPass = false
 
             // Step 1: Quick local analysis WITH multi-message context
@@ -315,7 +392,7 @@ class ScamShieldNotificationService : NotificationListenerService() {
                 if (quickResult.confidence >= confidenceThreshold || quickResult.matchedRules.size >= 2) {
                     if (tryShowScamAlert(
                             alert, ruleResult, parsed, soundEnabled, vibrateEnabled,
-                            senderKey, prefs, "quick"
+                            senderKey, prefs, "quick", isDemoMode
                         )
                     ) {
                         scamAlertShownThisPass = true
@@ -347,18 +424,18 @@ class ScamShieldNotificationService : NotificationListenerService() {
                     text = parsed.text,
                     source = parsed.source,
                     sender = parsed.sender,
-                    privacyMode = prefs.getBoolean("on_device_only", false)
+                    privacyMode = prefs.getBoolean("on_device_only", false),
+                    skipLocalCache = true,
                 )
                 if (fullResult.shouldAlert) {
                     // Always register scammer regardless of alert cooldown
                     scammerRepo.upsertHighRisk(senderKey, parsed.text)
 
-                    if (!scamAlertShownThisPass &&
-                        tryShowScamAlert(
-                            alert, fullResult, parsed, soundEnabled, vibrateEnabled,
-                            senderKey, prefs, "full"
-                        )
-                    ) {
+                    val fullAlertShown = tryShowScamAlert(
+                        alert, fullResult, parsed, soundEnabled, vibrateEnabled,
+                        senderKey, prefs, "full", isDemoMode
+                    )
+                    if (!scamAlertShownThisPass && fullAlertShown) {
                         Log.i(
                             TAG,
                             ">>> FULL ALERT SHOWN: conf=%.2f, enhanced=${fullResult.isEnhanced}, offline=${fullResult.isOffline}"
@@ -374,6 +451,7 @@ class ScamShieldNotificationService : NotificationListenerService() {
                     if (autoBait && !baiting.isBaitingActive(senderKey)) {
                         Log.i(TAG, "Auto-bait from full analysis. Starting baiting session for $senderKey")
                         baiting.startBaitingSession(senderKey, parsed.text)
+                    } else {
                     }
                 } else {
                     Log.d(
@@ -385,8 +463,32 @@ class ScamShieldNotificationService : NotificationListenerService() {
             } catch (e: Exception) {
                 Log.w(TAG, "Full analysis failed: ${e.message}")
             }
+            }
+
         } catch (e: Exception) {
             Log.e(TAG, "Detection pipeline error", e)
+        }
+    }
+
+    private fun mutexForSender(senderKey: String): Mutex =
+        senderPipelineMutex.computeIfAbsent(senderKey) { Mutex() }
+
+    /**
+     * Claim this content hash for processing. Returns false if another thread already claimed it within [DEDUP_WINDOW_MS].
+     */
+    private fun tryClaimDedupSlot(hash: String): Boolean {
+        synchronized(dedupLock) {
+            val now = System.currentTimeMillis()
+            val prev = recentHashes[hash]
+            if (prev != null && now - prev < DEDUP_WINDOW_MS) {
+                return false
+            }
+            recentHashes[hash] = now
+            if (recentHashes.size > MAX_DEDUP_ENTRIES) {
+                val cutoff = now - DEDUP_WINDOW_MS
+                recentHashes.entries.filter { it.value < cutoff }.forEach { recentHashes.remove(it.key) }
+            }
+            return true
         }
     }
 
@@ -422,14 +524,15 @@ class ScamShieldNotificationService : NotificationListenerService() {
         vibrateEnabled: Boolean,
         senderKey: String,
         prefs: SharedPreferences,
-        pathLabel: String
+        pathLabel: String,
+        isDemoMode: Boolean
     ): Boolean {
         if (!result.shouldAlert) return false
-        if (isSenderAlertWithinCooldown(senderKey, prefs)) {
+        if (!isDemoMode && isSenderAlertWithinCooldown(senderKey, prefs)) {
             Log.i(TAG, "Scam alert skipped ($pathLabel): per-sender cooldown for $senderKey")
             return false
         }
-        alert.showScamAlert(result, parsed, soundEnabled, vibrateEnabled)
+        alert.showScamAlert(result, parsed, soundEnabled, vibrateEnabled, senderKey)
         markSenderScamAlertShown(senderKey)
         Log.i(TAG, "Scam alert posted ($pathLabel) for $senderKey")
         return true
@@ -439,19 +542,6 @@ class ScamShieldNotificationService : NotificationListenerService() {
         val input = "${sender ?: ""}|$text"
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }.take(12)
-    }
-
-    private fun isDuplicate(hash: String): Boolean {
-        val timestamp = recentHashes[hash] ?: return false
-        return (System.currentTimeMillis() - timestamp) < DEDUP_WINDOW_MS
-    }
-
-    private fun markSeen(hash: String) {
-        recentHashes[hash] = System.currentTimeMillis()
-        if (recentHashes.size > MAX_DEDUP_ENTRIES) {
-            val cutoff = System.currentTimeMillis() - DEDUP_WINDOW_MS
-            recentHashes.entries.filter { it.value < cutoff }.forEach { recentHashes.remove(it.key) }
-        }
     }
 
     /**

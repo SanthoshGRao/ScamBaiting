@@ -22,8 +22,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.appcompat.widget.AppCompatButton
 import androidx.core.content.ContextCompat
-import com.google.android.material.button.MaterialButton
 import com.scamshield.app.R
 import com.scamshield.app.ui.MainActivity
 
@@ -106,7 +106,7 @@ class ScamOverlayService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_shield)
             .setContentTitle(getString(R.string.settings_overlay))
             .setContentText(getString(R.string.overlay_foreground_status))
             .setPriority(NotificationCompat.PRIORITY_MIN)
@@ -130,7 +130,7 @@ class ScamOverlayService : Service() {
         }
 
         val themedContext = ContextThemeWrapper(this, R.style.Theme_ScamShield)
-        val inflater = LayoutInflater.from(themedContext)
+        val inflater = LayoutInflater.from(this).cloneInContext(themedContext)
         val view = inflater.inflate(R.layout.layout_overlay_alert, null)
         overlayView = view
 
@@ -140,8 +140,8 @@ class ScamOverlayService : Service() {
         val ivIcon = view.findViewById<ImageView>(R.id.ivOverlayIcon)
         val layoutBg = view.findViewById<LinearLayout>(R.id.layoutOverlayBg)
         val btnClose = view.findViewById<ImageView>(R.id.btnCloseOverlay)
-        val btnIgnore = view.findViewById<MaterialButton>(R.id.btnOverlayIgnore)
-        val btnBait = view.findViewById<MaterialButton>(R.id.btnOverlayBait)
+        val btnIgnore = view.findViewById<AppCompatButton>(R.id.btnOverlayIgnore)
+        val btnBait = view.findViewById<AppCompatButton>(R.id.btnOverlayBait)
 
         tvTitle.text = title
         tvMessage.text = message

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowContentChanged|typeViewTextChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="500"
+    android:packageNames="com.whatsapp,org.telegram.messenger,com.google.android.apps.messaging,com.whatsapp.w4b,com.instagram.android"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:settingsActivity="com.scamshield.app.ui.MainActivity" />

@@ -71,8 +71,9 @@ class DashboardFragment : Fragment() {
 
     private fun setupUI() {
         binding.btnToggleProtection.setOnClickListener {
-            if (isNotificationListenerEnabled()) {
-                Toast.makeText(requireContext(), "Protection is already active", Toast.LENGTH_SHORT).show()
+            val notifEnabled = isNotificationListenerEnabled()
+            if (notifEnabled) {
+                Toast.makeText(requireContext(), "Protection is fully active", Toast.LENGTH_SHORT).show()
             } else {
                 openNotificationAccessSettings()
             }
@@ -355,7 +356,9 @@ class DashboardFragment : Fragment() {
             "Tap below to grant notification access"
 
         binding.btnToggleProtection.text = if (enabled)
-            getString(R.string.protection_active_btn) else getString(R.string.grant_access)
+            getString(R.string.protection_active_btn)
+        else
+            getString(R.string.grant_access)
 
         // Show LIVE badge when active
         binding.tvLiveBadge.visibility = if (enabled) View.VISIBLE else View.GONE

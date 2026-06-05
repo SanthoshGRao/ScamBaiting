@@ -8,7 +8,8 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
+import com.scamshield.app.R
+import java.security.MessageDigest
 import com.scamshield.app.detection.DetectionResult
 import com.scamshield.app.util.formatCategoryLabel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,7 +24,8 @@ import javax.inject.Singleton
  * - MEDIUM risk → normal priority notification
  * - LOW risk → silent notification
  *
- * Action buttons: Dismiss, View Details, Block Sender, Bait (engage scammer)
+ * Action buttons: Details, Block (when sender known), Bait (engage scammer).
+ * [senderIdForActions] must match scammers.phoneNumber (canonical sender key).
  *
  * Uses Android notification channels for user-controllable priorities.
  */
@@ -53,13 +55,60 @@ class AlertNotificationManager @Inject constructor(
         const val EXTRA_TEXT = "text"
 
         private var notificationId = 1000
+
+        private const val PREFS_NAME = "scamshield_prefs"
+        private const val PREF_PENDING_ALERT_PREFIX = "pending_scam_alert_id_"
     }
 
     private val notificationManager: NotificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+    private val prefs by lazy { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
     init {
         createNotificationChannels()
+    }
+
+    /** Align with [com.scamshield.app.data.ScammerRepository] canonical ids for DB / toggles / bait. */
+    private fun canonicalSenderId(sender: String): String {
+        val trimmed = sender.trim().lowercase()
+        val normalized = trimmed
+            .replace(Regex("[^a-z0-9+@._-]"), "")
+            .replace(Regex("\\s+"), "")
+        return if (normalized.isNotBlank()) normalized else trimmed
+    }
+
+    private fun digestKey(senderId: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(senderId.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun pendingPrefKey(senderId: String) = PREF_PENDING_ALERT_PREFIX + digestKey(senderId)
+
+    /** Remember which notification id belongs to this scammer so the UI toggle can dismiss it. */
+    private fun registerPendingScamAlert(senderId: String, notificationId: Int) {
+        if (senderId.isBlank()) return
+        val key = pendingPrefKey(senderId)
+        val prev = prefs.getInt(key, -1)
+        if (prev != -1 && prev != notificationId) {
+            notificationManager.cancel(prev)
+        }
+        prefs.edit().putInt(key, notificationId).apply()
+    }
+
+    /** Cancel the pending scam alert for this sender (e.g. user enabled AI from Scammers screen). */
+    fun dismissPendingScamAlertForSender(senderId: String) {
+        if (senderId.isBlank()) return
+        val key = pendingPrefKey(senderId)
+        val id = prefs.getInt(key, -1)
+        if (id != -1) notificationManager.cancel(id)
+        prefs.edit().remove(key).apply()
+    }
+
+    /** Clear tracking after the notification was dismissed by id (receiver actions). */
+    fun clearPendingScamAlertTracking(senderId: String) {
+        if (senderId.isBlank()) return
+        prefs.edit().remove(pendingPrefKey(senderId)).apply()
     }
 
     /**
@@ -74,7 +123,8 @@ class AlertNotificationManager @Inject constructor(
         result: DetectionResult,
         parsed: ParsedNotification,
         soundEnabled: Boolean = true,
-        vibrateEnabled: Boolean = true
+        vibrateEnabled: Boolean = true,
+        senderIdForActions: String? = null
     ) {
         if (!result.shouldAlert) {
             Log.d(TAG, "Below alert threshold (%.2f), skipping".format(result.bestConfidence))
@@ -85,11 +135,15 @@ class AlertNotificationManager @Inject constructor(
         val channelId = getChannelForRisk(riskTier)
         val nId = nextNotificationId()
 
+        val actionSenderId = senderIdForActions?.takeIf { it.isNotBlank() }
+            ?: canonicalSenderId(parsed.sender ?: "").ifBlank { "unknown" }
+
         val title = buildTitle(riskTier, parsed.sender)
         val body = buildBody(result, parsed)
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert) // TODO: custom icon
+            .setSmallIcon(R.drawable.ic_shield)
+            .setLargeIcon(android.graphics.BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher_foreground))
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -116,41 +170,26 @@ class AlertNotificationManager @Inject constructor(
         // Set priority based on risk tier
         when (riskTier) {
             RiskTier.HIGH -> {
-                builder.priority = NotificationCompat.PRIORITY_HIGH
+                builder.setPriority(NotificationCompat.PRIORITY_HIGH)
                 builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             }
             RiskTier.MEDIUM -> {
-                builder.priority = NotificationCompat.PRIORITY_DEFAULT
+                builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 builder.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             }
             RiskTier.LOW -> {
-                builder.priority = NotificationCompat.PRIORITY_LOW
+                builder.setPriority(NotificationCompat.PRIORITY_LOW)
                 builder.setVisibility(NotificationCompat.VISIBILITY_SECRET)
             }
         }
 
-        // Trigger Floating Overlay if enabled and risk is HIGH
-        if (riskTier == RiskTier.HIGH) {
-            val prefs = context.getSharedPreferences("scamshield_prefs", Context.MODE_PRIVATE)
-            if (prefs.getBoolean("floating_overlay", false) && android.provider.Settings.canDrawOverlays(context)) {
-                val overlayIntent = Intent(context, ScamOverlayService::class.java).apply {
-                    putExtra("EXTRA_TITLE", title)
-                    putExtra("EXTRA_MESSAGE", body)
-                    putExtra("EXTRA_HIGH_RISK", true)
-                    putExtra("EXTRA_SENDER", parsed.sender ?: "Unknown")
-                }
-                try {
-                    ContextCompat.startForegroundService(context, overlayIntent)
-                } catch (e: IllegalStateException) {
-                    Log.e(TAG, "Cannot start overlay foreground service", e)
-                }
-            }
-        }
+        // (Overlay popup removed — notification is sufficient)
 
         // Add action buttons
-        addActionButtons(builder, nId, parsed, result)
+        addActionButtons(builder, nId, parsed, result, actionSenderId)
 
         try {
+            registerPendingScamAlert(actionSenderId, nId)
             notificationManager.notify(nId, builder.build())
             Log.i(
                 TAG,
@@ -170,11 +209,12 @@ class AlertNotificationManager @Inject constructor(
         builder: NotificationCompat.Builder,
         notificationId: Int,
         parsed: ParsedNotification,
-        result: DetectionResult
+        result: DetectionResult,
+        senderIdForActions: String
     ) {
         val baseExtras = mapOf(
             EXTRA_MESSAGE_HASH to result.ruleVerdict.matchedRules.hashCode().toString(),
-            EXTRA_SENDER to (parsed.sender ?: "unknown"),
+            EXTRA_SENDER to senderIdForActions,
             EXTRA_CATEGORY to result.bestCategory,
             EXTRA_CONFIDENCE to result.bestConfidence.toString(),
             EXTRA_TEXT to parsed.text
@@ -196,14 +236,11 @@ class AlertNotificationManager @Inject constructor(
             )
         }
 
-        // Bait (engage scammer) — only for HIGH/MEDIUM confidence
-        if (result.bestConfidence >= 0.5f) {
-            builder.addAction(
-                android.R.drawable.ic_menu_send,
-                "Bait",
-                createActionIntent(ACTION_BAIT, notificationId, baseExtras)
-            )
-        }
+        builder.addAction(
+            R.drawable.ic_chat,
+            "Bait",
+            createActionIntent(ACTION_BAIT, notificationId, baseExtras)
+        )
     }
 
     /**
@@ -299,6 +336,32 @@ class AlertNotificationManager @Inject constructor(
 
     @Synchronized
     private fun nextNotificationId(): Int = ++notificationId
+
+    /**
+     * Convenience method for AccessibilityService-based alerts.
+     * Creates a synthetic ParsedNotification and delegates to showScamAlert.
+     *
+     * @param sender Display name of the sender / source app.
+     * @param messageText Summary text to show in the notification.
+     * @param result Detection result from the pipeline.
+     * @param originalPackage Source app package name.
+     */
+    fun showScamDetectedNotification(
+        sender: String,
+        messageText: String,
+        result: DetectionResult,
+        originalPackage: String
+    ) {
+        val syntheticParsed = ParsedNotification(
+            packageName = originalPackage,
+            sender = sender,
+            text = messageText,
+            source = com.scamshield.app.detection.model.InputSource.NOTIFICATION,
+            timestamp = System.currentTimeMillis()
+        )
+        val actionId = canonicalSenderId(sender).ifBlank { "screen:$originalPackage" }
+        showScamAlert(result = result, parsed = syntheticParsed, senderIdForActions = actionId)
+    }
 
     /** Dismiss a specific alert notification */
     fun dismiss(notificationId: Int) {

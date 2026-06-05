@@ -1,8 +1,12 @@
 package com.scamshield.app.detection.model
 
+import com.google.gson.annotations.SerializedName
+
 /**
  * Data models for the on-device detection pipeline.
  * Mirrors the backend Pydantic contracts for consistency.
+ *
+ * Gson emits Kotlin property names by default; FastAPI expects snake_case keys — use [@SerializedName].
  */
 
 /** Source of the incoming message */
@@ -33,9 +37,11 @@ data class DetectionRequest(
     val text: String,
     val source: String = "manual",
     val sender: String? = null,
-    val languageHint: String? = null,
-    val ruleVerdict: RuleVerdictDto? = null,
-    val privacyMode: Boolean = false
+    @SerializedName("language_hint") val languageHint: String? = null,
+    @SerializedName("rule_verdict") val ruleVerdict: RuleVerdictDto? = null,
+    @SerializedName("privacy_mode") val privacyMode: Boolean = false,
+    val media_type: String? = null,
+    val media_filename: String? = null
 )
 
 data class FeedbackRequest(
@@ -80,6 +86,9 @@ data class DetectionVerdictDto(
     val sender_score: Float = 0.5f,
     val link_risk_score: Float = 0f,
     val domain_flags: List<String> = emptyList(),
+    val media_risk_score: Float = 0f,
+    val media_flags: List<String> = emptyList(),
+    val media_type_detected: String? = null,
     val explainability: ExplainabilityDto = ExplainabilityDto()
 )
 

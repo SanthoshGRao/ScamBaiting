@@ -385,11 +385,12 @@ class OpenAIProvider(BaseLLMProvider):
 
     def _tuned_temperature(self, requested_temperature: float) -> float:
         """
-        Human-like randomness with bounded jitter around 0.7-0.9.
+        Human-like randomness with bounded jitter.
+        For baiting, allow higher temperatures for more creative and varied responses.
         """
         base = requested_temperature if requested_temperature > 0 else self._settings.llm_temperature
-        jitter = random.uniform(-0.08, 0.08)
-        return max(0.7, min(0.9, base + jitter))
+        jitter = random.uniform(-0.05, 0.05)
+        return max(0.6, min(1.0, base + jitter))
 
     # NOTE: _tuned_max_tokens removed (§1.5 fix).
     # Token budget is now decided ONCE by the caller (ResponseService/BaitingAgent)

@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- SMS access for precise incoming message detection -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+
     <!-- Notification access (granted via system settings) -->
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
         tools:ignore="ProtectedPermissions" />
@@ -17,17 +21,12 @@
 
     <!-- Foreground service (if needed for long API calls) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Overlay alert runs as a short foreground service on API 34+ -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SHORT_SERVICE" />
 
     <!-- Receive boot complete to re-enable service -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Wake lock for processing during doze (WorkManager) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-    <!-- Overlay permission for floating visual alerts -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- ==================== APPLICATION ==================== -->
 
@@ -78,12 +77,7 @@
             </intent-filter>
         </service>
 
-        <!-- Overlay Service for visual alerts (foreground so it can start from NLS / background) -->
-        <service
-            android:name=".service.ScamOverlayService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="shortService" />
+
 
         <!-- ========== BROADCAST RECEIVERS ========== -->
 
@@ -96,6 +90,16 @@
                 <action android:name="com.scamshield.ACTION_VIEW_DETAILS" />
                 <action android:name="com.scamshield.ACTION_BLOCK" />
                 <action android:name="com.scamshield.ACTION_BAIT" />
+            </intent-filter>
+        </receiver>
+
+        <!-- SMS Receiver for precise incoming SMS detection -->
+        <receiver
+            android:name=".service.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
 
@@ -117,6 +121,30 @@
             android:name=".ui.MessageInsightsActivity"
             android:exported="false"
             android:theme="@style/Theme.ScamShield" />
+
+        <!-- AccessibilityService for screen reading (detects messages, media, links, APKs on screen) -->
+        <service
+            android:name=".service.ScamShieldAccessibilityService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- FileProvider for sharing generated images to messaging apps -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

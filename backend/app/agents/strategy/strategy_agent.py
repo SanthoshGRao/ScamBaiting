@@ -50,7 +50,6 @@ STRATEGY_RULES: dict[str, str] = {
 class StrategyAgent:
     """Selects optimal baiting strategy using LLM reasoning + suspicion detection."""
 
-    # 🔥 SHORTER PROMPT (token optimized)
     STRATEGY_SELECTION_PROMPT = """
 Pick best strategy to waste scammer time.
 

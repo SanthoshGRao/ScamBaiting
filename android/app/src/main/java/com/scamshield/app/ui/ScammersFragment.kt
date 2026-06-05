@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.scamshield.app.R
 import com.scamshield.app.data.ScammerRepository
 import com.scamshield.app.databinding.FragmentScammersBinding
+import com.scamshield.app.service.AlertNotificationManager
 import com.scamshield.app.service.BaitingManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -30,6 +31,7 @@ class ScammersFragment : Fragment() {
 
     @Inject lateinit var scammerRepository: ScammerRepository
     @Inject lateinit var baitingManager: BaitingManager
+    @Inject lateinit var alertNotificationManager: AlertNotificationManager
 
     private lateinit var adapter: ScammerListAdapter
 
@@ -50,35 +52,33 @@ class ScammersFragment : Fragment() {
                     try {
                         scammerRepository.setAiEnabled(scammer.phoneNumber, enabled)
                         Log.i(TAG, "AI ${if (enabled) "enabled" else "disabled"} for ${scammer.phoneNumber}")
+                        if (enabled) {
+                            alertNotificationManager.dismissPendingScamAlertForSender(scammer.phoneNumber)
+                            Log.i(TAG, "Starting immediate baiting session for ${scammer.phoneNumber} from toggle")
+                            baitingManager.forceStartOrResumeSession(scammer.phoneNumber, scammer.lastMessage)
+                        } else {
+                            baitingManager.stopBaitingSession(scammer.phoneNumber)
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to toggle AI for ${scammer.phoneNumber}", e)
                     }
                 }
             },
-            onHandleAi = { scammer ->
+            onShowChat = { scammer ->
+                // Sync history first (non-blocking — failure is OK)
                 lifecycleScope.launch {
                     try {
-                        // Sync history first (non-blocking — failure is OK)
-                        try {
-                            scammerRepository.syncHistory(scammer.phoneNumber)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "History sync failed for ${scammer.phoneNumber} (non-fatal)", e)
-                        }
-
-                        // Start baiting session
-                        baitingManager.startBaitingSession(scammer.phoneNumber, scammer.lastMessage)
-                        Log.i(TAG, "Started AI handling for ${scammer.phoneNumber}")
-
-                        // Open baiting log
-                        startActivity(
-                            Intent(requireContext(), BaitingLogActivity::class.java).apply {
-                                putExtra("sender", scammer.phoneNumber)
-                            }
-                        )
+                        scammerRepository.syncHistory(scammer.phoneNumber)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to handle AI for ${scammer.phoneNumber}", e)
-                        Toast.makeText(requireContext(), "Failed to start AI session", Toast.LENGTH_SHORT).show()
+                        Log.w(TAG, "History sync failed for ${scammer.phoneNumber} (non-fatal)", e)
                     }
+
+                    // Open baiting log to show chat
+                    startActivity(
+                        Intent(requireContext(), BaitingLogActivity::class.java).apply {
+                            putExtra("sender", scammer.phoneNumber)
+                        }
+                    )
                 }
             }
         )

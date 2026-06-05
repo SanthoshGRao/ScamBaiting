@@ -1,13 +1,17 @@
 package com.scamshield.app
 
 import android.app.Application
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.scamshield.app.BuildConfig
 import com.scamshield.app.data.local.ScamShieldDatabase
+import com.scamshield.app.detection.DetectionRepository
 import com.scamshield.app.data.local.entity.ScamCategoryEntity
 import com.scamshield.app.data.local.entity.ScamKeywordEntity
+import com.scamshield.app.service.NotificationListenerReviver
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +36,7 @@ class ScamShieldApp : Application() {
     }
 
     @Inject lateinit var database: ScamShieldDatabase
+    @Inject lateinit var detectionRepository: DetectionRepository
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -40,6 +45,7 @@ class ScamShieldApp : Application() {
 
         // Apply persisted theme mode before UI starts.
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        ensureRealtimeProtectionDefaults(prefs)
         val darkEnabled = prefs.getBoolean("dark_mode_enabled", true)
         AppCompatDelegate.setDefaultNightMode(
             if (darkEnabled) AppCompatDelegate.MODE_NIGHT_YES
@@ -52,6 +58,37 @@ class ScamShieldApp : Application() {
                 seedDatabase()
                 prefs.edit().putBoolean(KEY_DB_SEEDED, true).apply()
             }
+        }
+
+        // After force-stop / clear cache, the NLS often stays unbound until rebind — do not require reinstall.
+        NotificationListenerReviver.pingColdStart(this)
+
+        appScope.launch {
+            val ok = try {
+                detectionRepository.isBackendAvailable()
+            } catch (e: Exception) {
+                Log.e(TAG, "Backend health check threw", e)
+                false
+            }
+            Log.i(TAG, "Backend ${BuildConfig.BASE_URL} reachable=$ok")
+            if (!ok) {
+                Log.w(
+                    TAG,
+                    "API unreachable from device — run: cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 " +
+                        "(and ngrok http 8000 if using BASE_URL tunnel). Toggle Off «On-device analysis» in Settings.",
+                )
+            }
+        }
+    }
+
+    /** Fresh installs / cleared storage omit keys — nested prefs defaults alone do not persist realtime_protection. */
+    private fun ensureRealtimeProtectionDefaults(prefs: SharedPreferences) {
+        if (!prefs.contains("realtime_protection")) {
+            prefs.edit()
+                .putBoolean("realtime_protection", true)
+                .putBoolean("privacy_mode", false)
+                .apply()
+            Log.i(TAG, "Initialized realtime_protection defaults after missing prefs")
         }
     }
 

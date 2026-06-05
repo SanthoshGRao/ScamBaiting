@@ -46,3 +46,11 @@ class BaitingResponse(BaseModel):
         default=None,
         description="Tracking link URL included in this reply (if any)",
     )
+    image_base64: str | None = Field(
+        default=None,
+        description="Base64-encoded JPEG of AI-generated fake screenshot (payment proof, error, etc.)",
+    )
+    image_context: str | None = Field(
+        default=None,
+        description="Context type: payment_proof, error_screen, otp_screen, receipt",
+    )

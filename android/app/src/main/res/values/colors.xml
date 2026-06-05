@@ -93,6 +93,9 @@
     <color name="chart_axis_line">#66000000</color>
     <color name="chart_grid">#18000000</color>
 
+    <!-- Launcher Icon -->
+    <color name="ic_launcher_background">#000000</color>
+
     <!-- Standard -->
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>

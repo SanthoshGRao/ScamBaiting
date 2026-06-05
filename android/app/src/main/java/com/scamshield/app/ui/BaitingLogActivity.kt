@@ -28,9 +28,10 @@ class BaitingLogActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_baiting_log)
 
-        senderId = intent.getStringExtra("sender") ?: return finish()
+        val rawSender = intent.getStringExtra("sender") ?: return finish()
+        senderId = canonicalSenderId(rawSender)
         
-        findViewById<TextView>(R.id.tvSessionHeader).text = "Baiting: $senderId"
+        findViewById<TextView>(R.id.tvSessionHeader).text = "Baiting: $rawSender"
         findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
 
         val rv = findViewById<RecyclerView>(R.id.rvMessages)
@@ -43,14 +44,26 @@ class BaitingLogActivity : AppCompatActivity() {
         loadMessages()
     }
 
+    private fun canonicalSenderId(sender: String): String {
+        val trimmed = sender.trim().lowercase()
+        val normalized = trimmed
+            .replace(Regex("[^a-z0-9+@._-]"), "")
+            .replace(Regex("\\s+"), "")
+        return if (normalized.isNotBlank()) normalized else sender.replace(Regex("\\s+"), "").trim()
+    }
+
     private fun loadMessages() {
         lifecycleScope.launch {
             val session = baitingDao.getSession(senderId)
             findViewById<TextView>(R.id.tvPersonaGoal).text =
                 "Persona: ${session?.persona ?: "unknown"}  •  Goal: Wasting scammer time"
-            val msgs = baitingDao.getMessagesForSender(senderId)
-            adapter.submitList(msgs)
-            findViewById<RecyclerView>(R.id.rvMessages).scrollToPosition(msgs.size - 1)
+            
+            baitingDao.observeMessagesForSender(senderId).collect { msgs ->
+                adapter.submitList(msgs)
+                if (msgs.isNotEmpty()) {
+                    findViewById<RecyclerView>(R.id.rvMessages).scrollToPosition(msgs.size - 1)
+                }
+            }
         }
     }
 }

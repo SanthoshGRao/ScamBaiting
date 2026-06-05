@@ -11,7 +11,7 @@ import java.util.Locale
 
 class ScammerListAdapter(
     private val onAiToggle: (ScammerEntity, Boolean) -> Unit,
-    private val onHandleAi: (ScammerEntity) -> Unit
+    private val onShowChat: (ScammerEntity) -> Unit
 ) : RecyclerView.Adapter<ScammerListAdapter.Holder>() {
     private var items: List<ScammerEntity> = emptyList()
     private var clearTime: Long = 0L
@@ -38,14 +38,14 @@ class ScammerListAdapter(
         holder.binding.switchAi.setOnCheckedChangeListener(null)
         holder.binding.switchAi.isChecked = item.aiEnabled
         holder.binding.switchAi.setOnCheckedChangeListener { _, isChecked -> onAiToggle(item, isChecked) }
-        holder.binding.btnHandleAi.setOnClickListener { onHandleAi(item) }
+        holder.binding.btnShowChat.setOnClickListener { onShowChat(item) }
 
         if (item.timestamp < clearTime) {
             holder.binding.switchAi.visibility = android.view.View.GONE
-            holder.binding.btnHandleAi.visibility = android.view.View.GONE
+            holder.binding.btnShowChat.visibility = android.view.View.GONE
         } else {
             holder.binding.switchAi.visibility = android.view.View.VISIBLE
-            holder.binding.btnHandleAi.visibility = android.view.View.VISIBLE
+            holder.binding.btnShowChat.visibility = android.view.View.VISIBLE
         }
     }
 

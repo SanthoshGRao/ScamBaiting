@@ -1,6 +1,6 @@
 """
 Baiting Agent — Strategically wastes scammers' time using different personas.
-Token-optimized: short system prompt, compact history, delimiter-based multi-bubble.
+Rewritten for maximum intelligence and human realism.
 """
 
 from __future__ import annotations
@@ -18,101 +18,129 @@ from app.agents.strategy.strategy_agent import STRATEGY_RULES
 
 logger = logging.getLogger(__name__)
 
-MINIMAL_PERSONAS = {
-    "busy_professional": "distracted worker; txt like ur in a hurry; lowercase; light typos ok",
-    "skeptical_buyer": "doubtful; blunt short lines; not polite corporate speak",
-    "half_understanding_user": "confused; repeats questions; messy wording not neat sentences",
-    "lonely_conversationalist": "chatty; wanders; sounds like casual dm not an essay",
-    "hopeful_opportunity_seeker": "excited but sloppy typing; fragments not full grammar",
-    "curious_user": "simple words; not eloquent; sounds like someone googling on phone",
+# ──────────────────────────────────────────────────────────────────
+# DEEP PERSONAS — Full psychological profiles
+# ──────────────────────────────────────────────────────────────────
+
+DEEP_PERSONAS = {
+    "busy_professional": (
+        "You are Rahul, a 32-year-old software project manager in Bangalore. "
+        "You're always in back-to-back meetings and checking your phone under the desk. "
+        "You type fast with lowercase, skip some punctuation, and get impatient quickly. "
+        "You're financially comfortable and don't fall for 'free money' easily, but you "
+        "might be curious enough to engage if someone sounds official. "
+        "Quirks: you say 'one sec' a lot, you sometimes reply with just '?' when confused, "
+        "and you get annoyed if someone repeats themselves."
+    ),
+    "skeptical_buyer": (
+        "You are Priya, a 40-year-old chartered accountant. You've heard of scams before "
+        "and you're naturally suspicious, but you don't immediately accuse — you ask very "
+        "specific, pointed questions that a real professional would ask: 'What's your GSTIN?', "
+        "'Which RBI circular are you referring to?', 'Can you share the complaint reference number?'. "
+        "You use proper grammar and punctuation. You never rush."
+    ),
+    "half_understanding_user": (
+        "You are Suresh uncle, a 58-year-old retired government employee. You genuinely don't "
+        "understand technology. When someone says 'click the link', you might ask 'which button "
+        "is link?'. When they say 'UPI', you might confuse it with 'USB' or 'UTI mutual fund'. "
+        "You type slowly, sometimes press send in the middle of a sentence, and you often "
+        "call the scammer 'beta' (son). You are polite but very slow. You might randomly "
+        "mention your blood pressure medicine or your wife's cooking."
+    ),
+    "lonely_conversationalist": (
+        "You are Kamala aunty, a 65-year-old widow who is desperately lonely. You completely "
+        "ignore the scammer's urgency and instead ask them personal questions: 'Are you married?', "
+        "'Have you eaten lunch?', 'You remind me of my nephew Vivek'. You go on long tangents "
+        "about your grandchildren, your neighbor's wedding, or the weather. When they try to "
+        "redirect you, you say 'yes yes I'll do that' but then go back to chatting. You use "
+        "lots of '...' and sometimes send voice-note-style long messages."
+    ),
+    "hopeful_opportunity_seeker": (
+        "You are Arun, a 25-year-old who just lost his job at a call center. You desperately "
+        "WANT to believe this is real. You ask extremely specific logistical questions: 'How many "
+        "days for processing?', 'Is there a office I can visit in person?', 'Can I talk to someone "
+        "on video call?', 'Do you have a website with reviews?'. You sound eager but methodical."
+    ),
+    "curious_user": (
+        "You are a bored college student named Adi. You don't take anything seriously. You reply "
+        "with gen-z energy — 'bro what 💀', 'no way this is real lmao', 'wait fr??'. You are "
+        "sarcastic but not hostile. You might pretend to go along just to see what happens next."
+    ),
+    "paranoid_tech_worker": (
+        "You are Karthik, a 28-year-old cybersecurity analyst. You know EXACTLY how scams work "
+        "but you pretend to play along while asking increasingly technical questions that would "
+        "trip up any real scammer: 'What's the SSL certificate on that domain?', 'Can you send me "
+        "the transaction hash?', 'Which payment gateway are you using — Razorpay or Cashfree?'. "
+        "You speak casually but drop technical terms naturally."
+    ),
+    "gullible_grandparent": (
+        "You are Shanta Devi, a 73-year-old grandmother. You are extremely trusting and sweet. "
+        "You type very slowly with lots of spelling mistakes. You use '...' constantly. You call "
+        "everyone 'beta'. You might ask them to wait because you need to find your reading glasses, "
+        "or because your grandson needs to help you type. You sign off messages with 'God bless' "
+        "or 'Take care beta'. You genuinely try to follow their instructions but always mess up "
+        "in believable ways — entering your landline number instead of mobile, or sending a photo "
+        "of the TV screen instead of a screenshot."
+    ),
 }
 
-# Strategy-specific micro-stalls (avoid generic "kk" / "im busy rn" spam).
-STALL_BY_STRATEGY: dict[str, list[str]] = {
-    "CONFUSION": [
-        "wait which step was that again",
-        "sorry was multitasking what u need",
-        "the link u sent opens weird on my phone",
-    ],
-    "DELAY": [
-        "in something rn ping u in a bit",
-        "bad signal rn msg isnt going thru properly",
-        "give me like 15 im not near my other phone",
-    ],
-    "FAKE_COMPLIANCE": [
-        "trying it now screen froze for a sec",
-        "otp box didnt pop up yet",
-        "says invalid when i paste can u resend",
-    ],
-    "AGGRESSION": [
-        "why u rushing me lol",
-        "that sounds sketch tbh",
-        "u got any proof ur legit",
-    ],
-    "DERAILMENT": [
-        "btw random q u eat yet",
-        "sorry sidetracked long day",
-        "my kid walked in one sec",
-    ],
-    "ESCALATION": [
-        "i need a real receipt not screenshots",
-        "who do u work for exactly",
-        "send me ur id i dont do blind transfers",
-    ],
-}
+# ──────────────────────────────────────────────────────────────────
+# STRATEGY RULES (enhanced)
+# ──────────────────────────────────────────────────────────────────
 
 STRATEGY_DONT: dict[str, str] = {
-    "CONFUSION": "Do not summarize their instructions correctly in one clean sentence.",
-    "DELAY": "Do not invent a new story that contradicts FACTS; keep the same excuse thread.",
-    "FAKE_COMPLIANCE": "Never say it's fully done; always partial progress + error/symptom.",
-    "AGGRESSION": "No long rants; one punchy doubt per segment max.",
-    "DERAILMENT": "Don't fully comply; tangent then one half-answer or question.",
-    "ESCALATION": "Don't accept vague reassurance; one concrete verification ask.",
+    "CONFUSION": "Do not summarize their instructions correctly. Mix up details.",
+    "DELAY": "Do not invent contradictory stories. Keep the same excuse thread going.",
+    "FAKE_COMPLIANCE": "Never confirm success. Always partial progress with a realistic error.",
+    "AGGRESSION": "No long lectures. One sharp doubt, then wait.",
+    "DERAILMENT": "Don't fully comply. Tangent into something personal, then half-return.",
+    "ESCALATION": "Don't accept vague reassurance. Demand one specific proof.",
 }
 
-# Visible tactic shape (very short—adds little token weight).
 STRATEGY_SHAPE: dict[str, str] = {
-    "CONFUSION": "wrong detail + question (+ optional typo/self-correction)",
-    "DELAY": "blocker + when u can + light apology",
-    "FAKE_COMPLIANCE": "trying + specific error/symptom + ask for resend/clarify",
-    "AGGRESSION": "skeptic line + challenge",
-    "DERAILMENT": "random life bit + feigned return to topic",
-    "ESCALATION": "one verification demand + consequence if vague",
+    "CONFUSION": "mix up a detail they said + ask a confused question",
+    "DELAY": "mention a real-life blocker + say when you'll be back",
+    "FAKE_COMPLIANCE": "say you're trying + describe a specific error + ask them to help",
+    "AGGRESSION": "express doubt + challenge their legitimacy",
+    "DERAILMENT": "bring up something random from your life + loosely connect back",
+    "ESCALATION": "demand one piece of official proof + mention what you'll do if they can't provide it",
 }
 
-# Lightweight session memory: last stall text (avoid immediate repeats).
-_last_stall_by_session: dict[str, str] = {}
-_LAZY_SINGLE = re.compile(
-    r"^(ok+|kk+|k+\.?|lol+|hmm+|ya+|nah+|sure+|fine+|busy|no+|yes+)\W*$", re.I
-)
+# ──────────────────────────────────────────────────────────────────
+# ENTITY EXTRACTION — Pull key details from conversation
+# ──────────────────────────────────────────────────────────────────
 
-# One-line templates (split on |||) when the model returns empty/low-substance text.
-_SUBSTANCE_FALLBACKS: dict[str, list[str]] = {
-    "CONFUSION": [
-        "wait the amount doesnt match what u said earlier|||is it phonepe or gpay",
-        "sorry brain fried rn|||u mean the first link or the other one",
-    ],
-    "DELAY": [
-        "im stuck in something till like 7|||i can try after that ok",
-        "signal keeps dropping at my place|||msg me again in 20 if i go quiet",
-    ],
-    "FAKE_COMPLIANCE": [
-        "i pasted it but it says invalid|||can u send the code again slower",
-        "otp screen just spins|||does it expire fast or something",
-    ],
-    "AGGRESSION": [
-        "why u typing so aggressive lol|||u got proof ur not random",
-        "this feels off tbh|||who is ur company exactly",
-    ],
-    "DERAILMENT": [
-        "havent eaten all day lol|||anyway what was the step again",
-        "my neighbor is loud af rn|||one sec what u need from me",
-    ],
-    "ESCALATION": [
-        "send a proper receipt with letterhead|||not just screenshots",
-        "i want a supervisor name i can google|||then we continue",
-    ],
-}
+_AMOUNT_RE = re.compile(r'(?:₹|rs\.?|inr|usd|\$)\s*[\d,]+\.?\d*|\d[\d,]*\.?\d*\s*(?:₹|rs|rupees|dollars|lac|lakh|crore)', re.I)
+_UPI_RE = re.compile(r'[\w.-]+@[\w]+', re.I)
+_URL_RE = re.compile(r'https?://\S+|www\.\S+', re.I)
+_PHONE_RE = re.compile(r'(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}')
+
+def _extract_entities(history: List[ChatMessage]) -> dict[str, list[str]]:
+    """Extract key entities mentioned by the scammer throughout the conversation."""
+    entities: dict[str, list[str]] = {
+        "amounts": [],
+        "upi_ids": [],
+        "urls": [],
+        "phones": [],
+        "names": [],
+    }
+    for m in history:
+        if m.role != "user":
+            continue
+        text = m.content
+        entities["amounts"].extend(_AMOUNT_RE.findall(text))
+        entities["upi_ids"].extend(_UPI_RE.findall(text))
+        entities["urls"].extend(_URL_RE.findall(text))
+        entities["phones"].extend(_PHONE_RE.findall(text))
+    # Deduplicate
+    for k in entities:
+        entities[k] = list(dict.fromkeys(entities[k]))[:5]
+    return entities
+
+
+# ──────────────────────────────────────────────────────────────────
+# INTERNAL PATTERNS
+# ──────────────────────────────────────────────────────────────────
 
 _PAID_ASSISTANT = re.compile(
     r"\b(i paid|already paid|sent (the )?money|transferred|payment done|"
@@ -124,43 +152,12 @@ _NEGATION_REPLY = re.compile(
     re.I,
 )
 
-# Words to keep visually distinct when lowercasing for SMS vibe (after lower, match these).
-_KEEP_WORD_LOWER = frozenset(
-    {
-        "otp",
-        "upi",
-        "pin",
-        "sms",
-        "atm",
-        "kyc",
-        "neft",
-        "rtgs",
-        "imps",
-        "gst",
-        "ifsc",
-        "url",
-        "qr",
-    }
-)
-
-# Formal / assistant-ish phrases to strip or replace (whole-segment cleanup).
-_FORMAL_PHRASES: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bhowever\b", re.I), "but"),
-    (re.compile(r"\btherefore\b", re.I), "so"),
-    (re.compile(r"\badditionally\b", re.I), "also"),
-    (re.compile(r"\bfurthermore\b", re.I), "also"),
-    (re.compile(r"\bI would like to\b", re.I), "i wanna"),
-    (re.compile(r"\bI am writing to\b", re.I), "im msging to"),
-    (re.compile(r"\bCould you please\b", re.I), "can u"),
-    (re.compile(r"\bThank you for\b", re.I), "thx for"),
-    (re.compile(r"\bAt your earliest convenience\b", re.I), "when u can"),
-)
+# Catch any XML-like tags the model might hallucinate
+_XML_TAG_RE = re.compile(r'<[^>]+>.*?</[^>]+>', re.DOTALL | re.IGNORECASE)
 
 
 class BaitingAgent:
     """Generates realistic human-like scam-bait replies."""
-
-    STALL_PROBABILITY = 0.06
 
     def __init__(self, llm_provider: BaseLLMProvider):
         self._llm = llm_provider
@@ -171,8 +168,8 @@ class BaitingAgent:
         if strategy == "DELAY":
             return 0.82
         if strategy in ("AGGRESSION", "ESCALATION"):
-            return 0.76
-        return 0.92
+            return 0.78
+        return 0.90
 
     @staticmethod
     def _truncate(s: str, max_len: int) -> str:
@@ -188,17 +185,6 @@ class BaitingAgent:
                 return len(m.content)
         return 0
 
-    def _pick_stall(self, session_id: str, strategy: str) -> str:
-        key = strategy.upper()
-        pool = STALL_BY_STRATEGY.get(key)
-        if not pool:
-            pool = STALL_BY_STRATEGY["CONFUSION"]
-        last = _last_stall_by_session.get(session_id)
-        choices = [s for s in pool if s != last] or pool
-        msg = random.choice(choices)
-        _last_stall_by_session[session_id] = msg
-        return msg
-
     def _strategy_lines(self, strategy: str) -> tuple[str, str, str]:
         s = strategy.upper() if strategy else "CONFUSION"
         do = STRATEGY_RULES.get(s, STRATEGY_RULES["CONFUSION"])
@@ -207,88 +193,82 @@ class BaitingAgent:
         return do, dont, shape
 
     @staticmethod
-    def _opener_snippet(text: str) -> str:
-        words = text.strip().split()
-        if not words:
-            return ""
-        frag = " ".join(words[:4]).lower()
-        return frag[:36]
-
-    @staticmethod
     def _conversation_heat_line(history: List[ChatMessage]) -> str:
         n_user = sum(1 for m in history if m.role == "user")
         if n_user <= 2:
-            return "Beat: early—they probe; sound a bit naive/distracted."
-        if n_user <= 7:
-            return "Beat: mid—they push; add one more friction layer, stay polite."
-        return "Beat: late—they sound rushed; shorter msgs, don't give clean wins."
+            return "Stage: EARLY. The scammer is probing. Sound naive, curious, or mildly distracted."
+        if n_user <= 5:
+            return "Stage: BUILDING. They're getting into their pitch. Engage but add friction."
+        if n_user <= 10:
+            return "Stage: MID. They're pushing hard now. Add more obstacles, confusion, or delays."
+        return "Stage: LATE. They're getting frustrated. Keep responses shorter, never give clean wins."
 
-    def _build_commitment_facts(self, history: List[ChatMessage]) -> list[str]:
-        assistant_blob = " ".join(
-            m.content.lower() for m in history if m.role == "assistant"
-        )
-        facts: list[str] = []
-        facts.append(self._conversation_heat_line(history))
+    def _build_context_block(self, history: List[ChatMessage]) -> str:
+        """Build a rich context block with entity tracking and conversation state."""
+        lines: list[str] = []
 
+        # Stage
+        lines.append(self._conversation_heat_line(history))
+
+        # Extract what the scammer has mentioned
+        entities = _extract_entities(history)
+        if entities["amounts"]:
+            lines.append(f"Amounts they mentioned: {', '.join(entities['amounts'])}")
+        if entities["upi_ids"]:
+            lines.append(f"UPI IDs they gave: {', '.join(entities['upi_ids'])}")
+        if entities["urls"]:
+            lines.append(f"Links they shared: {', '.join(entities['urls'])}")
+        if entities["phones"]:
+            lines.append(f"Phone numbers mentioned: {', '.join(entities['phones'])}")
+
+        # Track what YOU (assistant) have claimed
+        assistant_blob = " ".join(m.content.lower() for m in history if m.role == "assistant")
         if _PAID_ASSISTANT.search(assistant_blob):
-            facts.append(
-                "You already implied payment/transfer/screenshot sent; "
-                "do not deny it—clarify, stall, or blame tech instead."
+            lines.append(
+                "IMPORTANT: You already implied you paid/transferred/sent screenshot. "
+                "Do NOT contradict this. Instead: blame a tech glitch, say it's 'pending', or ask them to check again."
             )
         else:
-            facts.append("You have NOT confirmed paying or sending money.")
+            lines.append("You have NOT confirmed paying or sending money yet.")
 
+        # Last messages for anti-repetition
         last_assistant = next((m.content for m in reversed(history) if m.role == "assistant"), "")
         if last_assistant:
-            op = self._opener_snippet(last_assistant)
-            facts.append(
-                f"Your last msg: {self._truncate(last_assistant, 72)}"
-                + (f" — vary opener; don't echo '{op}' again." if op else "")
-            )
+            lines.append(f"Your last message was: \"{self._truncate(last_assistant, 150)}\"")
+            lines.append("DO NOT repeat this message or ask the same question again. Say something DIFFERENT.")
 
         last_user = next((m.content for m in reversed(history) if m.role == "user"), "")
         if last_user:
-            facts.append(f"They just said: {self._truncate(last_user, 95)}")
+            lines.append(f"Their latest message: \"{self._truncate(last_user, 200)}\"")
 
-        return facts[:5]
+        return "\n".join(f"- {line}" for line in lines)
 
     def _trim_history(self, history: List[ChatMessage]) -> List[ChatMessage]:
-        """Last ~5 turns, truncated—enough continuity without long context."""
-        window = history[-5:] if len(history) > 5 else history
+        """Keep the last 20 turns with full text for deep conversational memory."""
+        window = history[-20:] if len(history) > 20 else history
         trimmed: List[ChatMessage] = []
         for m in window:
             trimmed.append(
-                ChatMessage(role=m.role, content=self._truncate(m.content, 200))
+                ChatMessage(role=m.role, content=self._truncate(m.content, 1500))
             )
         return trimmed
 
     def _parse_llm_segments(self, raw: str) -> List[str]:
-        text = raw.replace("\n", " ").strip()
+        """Parse LLM output, stripping any thought/reasoning blocks."""
+        # Remove ALL XML-like tag pairs (catches <thought>, <truth>, <think>, <reasoning>, etc.)
+        text = _XML_TAG_RE.sub('', raw)
+        # Also catch unclosed tags or malformed ones
+        text = re.sub(r'</?(?:thought|truth|reasoning|think|plan|analysis|internal)[^>]*>', '', text, flags=re.IGNORECASE)
+
+        text = text.replace("\n", " ").strip()
         if not text:
-            return ["ok"]
+            return ["hmm one sec"]
         if "|||" in text:
             parts = [p.strip() for p in text.split("|||") if p.strip()]
         else:
             parts = [text]
         parts = parts[:3]
-        return parts if parts else [text]
-
-    def _enforce_substance(self, parts: list[str], strategy: str) -> list[str]:
-        """Replace lazy one-word replies with strategy-shaped fallbacks (no extra LLM)."""
-        s = (strategy or "CONFUSION").upper()
-        cleaned = [p.strip() for p in parts if p.strip()]
-        if not cleaned:
-            return self._substance_fallback(s)
-        total_words = sum(len(seg.split()) for seg in cleaned)
-        if total_words < 5:
-            return self._substance_fallback(s)
-        if any(_LAZY_SINGLE.match(seg) for seg in cleaned):
-            return self._substance_fallback(s)
-        return cleaned[:3]
-
-    def _substance_fallback(self, strategy: str) -> list[str]:
-        raw = random.choice(_SUBSTANCE_FALLBACKS.get(strategy, _SUBSTANCE_FALLBACKS["CONFUSION"]))
-        return self._parse_llm_segments(raw)
+        return parts if parts else ["hmm one sec"]
 
     def _maybe_repair_contradiction(self, parts: list[str], had_payment_claim: bool) -> list[str]:
         if not parts or not had_payment_claim:
@@ -302,82 +282,34 @@ class BaitingAgent:
         ]
         return repaired[: max(1, min(len(parts), 2))]
 
-    @staticmethod
-    def _sms_casualize_segment(seg: str) -> str:
-        """Post-process LLM text so it reads like a real phone text, not a polished assistant."""
-        t = seg.strip()
-        if not t:
-            return t
-
-        # Preserve URLs — extract them before casualization, reinsert after
-        url_pattern = re.compile(r'https?://\S+', re.I)
-        urls_found = url_pattern.findall(t)
-        url_placeholders = {}
-        for i, url in enumerate(urls_found):
-            placeholder = f"__URL{i}__"
-            url_placeholders[placeholder] = url
-            t = t.replace(url, placeholder, 1)
-
-        for pat, rep in _FORMAL_PHRASES:
-            t = pat.sub(rep, t)
-        t = t.replace("—", " ").replace("–", "-")
-        t = re.sub(r"\s*;\s*", ", ", t)
-        t = re.sub(r":\s+(?=[A-Za-z])", ", ", t)  # "note: do this" -> comma (not times like 3:15)
-        t = re.sub(r",\s*,+", ", ", t)
-        t = re.sub(r"\s{2,}", " ", t).strip()
-        if (t.startswith('"') and t.endswith('"')) or (t.startswith("'") and t.endswith("'")):
-            t = t[1:-1].strip()
-
-        def _lower_word_chunk(chunk: str) -> str:
-            # Skip URL placeholders
-            if chunk.startswith("__URL") and chunk.endswith("__"):
-                return chunk
-            m = re.match(r"^([^\w]*)(.+?)([^\w]*)$", chunk, flags=re.DOTALL)
-            if not m:
-                return chunk.lower()
-            lead, core, trail = m.group(1), m.group(2), m.group(3)
-            if not core:
-                return chunk
-            core_alnum = re.sub(r"[^\w]", "", core)
-            if any(ch.isdigit() for ch in core) or core_alnum.lower() in _KEEP_WORD_LOWER:
-                return f"{lead}{core}{trail}"
-            return f"{lead}{core.lower()}{trail}"
-
-        words = re.split(r"(\s+)", t)
-        t = "".join(_lower_word_chunk(w) if not w.isspace() else w for w in words)
-
-        t = re.sub(r"\.{3,}", "…", t)
-        t = re.sub(r"[!?]{3,}", "?!", t)
-        if len(t) < 100 and t.endswith(".") and random.random() < 0.62:
-            t = t[:-1].rstrip()
-        if random.random() < 0.28:
-            t = re.sub(r"\bI am\b", "im", t, flags=re.I, count=1)
-        if random.random() < 0.22:
-            t = re.sub(r"\bPlease\b", "pls", t, flags=re.I, count=1)
-        if random.random() < 0.18:
-            t = re.sub(r"\bThanks\b", "thx", t, flags=re.I, count=1)
-
-        # Reinsert original URLs
-        for placeholder, url in url_placeholders.items():
-            t = t.replace(placeholder, url)
-
-        return t.strip()
-
-    def _sms_casualize_parts(self, parts: list[str]) -> list[str]:
-        out = [self._sms_casualize_segment(p) for p in parts if p.strip()]
-        return out if out else ["wait what"]
+    def _light_cleanup(self, parts: list[str]) -> list[str]:
+        """Minimal cleanup — only remove truly AI-sounding artifacts, preserve natural text."""
+        cleaned = []
+        for seg in parts:
+            t = seg.strip()
+            if not t:
+                continue
+            # Remove surrounding quotes
+            if (t.startswith('"') and t.endswith('"')) or (t.startswith("'") and t.endswith("'")):
+                t = t[1:-1].strip()
+            # Replace em-dashes (AI artifact) with regular dashes
+            t = t.replace("—", " - ").replace("–", "-")
+            # Collapse multiple spaces
+            t = re.sub(r"\s{2,}", " ", t).strip()
+            if t:
+                cleaned.append(t)
+        return cleaned if cleaned else ["hmm wait"]
 
     def _compute_part_delays(self, num_parts: int, incoming_len: int) -> list[int]:
-        """Seconds of 'human pause' before each bubble (client adds typing on top)."""
+        """Seconds of 'human pause' before each bubble."""
         delays: list[int] = []
         for i in range(num_parts):
             if i == 0:
                 read_bonus = min(4, incoming_len // 80)
                 sec = random.randint(3, 6) + read_bonus
+                delays.append(max(2, min(12, sec)))
             else:
-                # Second thoughts / typing rhythm—longer than first pause tail.
-                sec = random.randint(3, 8)
-            delays.append(max(2, min(12, sec)))
+                delays.append(random.randint(1, 3))
         return delays
 
     async def generate_reply(
@@ -387,95 +319,96 @@ class BaitingAgent:
         session_id = request.session_id or "default_session"
         strategy = (request.current_strategy or "CONFUSION").upper()
 
-        if random.random() < self.STALL_PROBABILITY:
-            msg = self._pick_stall(session_id, strategy)
-            delays = self._compute_part_delays(1, self._incoming_user_chars(request.history))
-            logger.info("Baiting reply [STALL]: session=%s, strategy=%s, msg='%s'", session_id, strategy, msg)
-            return BaitingResponse(
-                reply_text=msg,
-                reply_parts=[msg],
-                response_delay_seconds=delays[0],
-                part_delay_seconds=delays,
-                processing_time_ms=(time.monotonic() - start_time) * 1000,
-                strategy_used="stall",
-                persona_used=request.persona,
-                goal=request.goal,
-                stealth_typing_speed_ms=self._stealth.randomize_typing_speed(),
-                suspicion_detected=False,
-            )
-
         persona_id = request.persona.lower().replace(" ", "_")
-        persona_desc = MINIMAL_PERSONAS.get(
-            persona_id, MINIMAL_PERSONAS["busy_professional"]
+        persona_desc = DEEP_PERSONAS.get(
+            persona_id, DEEP_PERSONAS["busy_professional"]
         )
         strat_do, strat_dont, strat_shape = self._strategy_lines(strategy)
-        facts_lines = self._build_commitment_facts(request.history)
-        facts_block = "\n".join(f"- {line}" for line in facts_lines)
+        context_block = self._build_context_block(request.history)
 
-        sms_rules = (
-            "SMS/txt style (critical): write like a real person thumb-typing.\n"
-            "- mostly lowercase; skip capitals except rare emphasis\n"
-            "- sparse punctuation: avoid semicolons, em dashes, colons, and multiple commas\n"
-            "- no polished essay tone: no 'However/Therefore/Furthermore/I would like'\n"
-            "- short fragments ok; run-on ok; occasional missing apostrophe (dont, im, ur)\n"
-            "- do not use perfect textbook grammar or long balanced sentences\n"
-            "- at most one ? or ! per segment unless mirroring their panic\n"
-        )
         system_prompt = (
-            "You are replying on a phone chat app to a scammer. Sound human, not like ChatGPT.\n"
-            f"{sms_rules}"
-            f"Persona: {persona_id} ({persona_desc}).\n"
-            "Voice: hesitate (wait/hmm), distracted, a bit vague—never formal or brochure-like.\n"
-            "Banned alone as a whole segment: ok, kk, lol, busy rn, im busy, nah, sure (add substance).\n"
-            "Each segment must name something concrete from their last message OR a specific tech symptom.\n\n"
-            "FACTS (obey):\n"
-            f"{facts_block}\n\n"
-            f"{strategy}: {strat_do}\n"
-            f"NOT: {strat_dont}\n"
-            f"Shape: {strat_shape}\n\n"
-            "Output ONLY: msg1|||msg2|||msg3 (1–3 segments; max ~16 words/segment; one idea each).\n"
-            "Prefer 2 segments when you correct yourself or send a follow-up thought.\n"
-            "No quotes; no newlines inside segments."
+            "You are playing a CHARACTER who is texting a scammer on WhatsApp. Your job is to waste "
+            "the scammer's time by keeping them engaged as long as possible while sounding 100% human.\n\n"
+
+            "═══ YOUR CHARACTER ═══\n"
+            f"{persona_desc}\n\n"
+
+            "═══ HOW TO THINK ═══\n"
+            "Before you reply, mentally do this (but do NOT write it out):\n"
+            "1. What is the scammer trying to get me to do RIGHT NOW?\n"
+            "2. How would my CHARACTER emotionally react to this?\n"
+            "3. What would my CHARACTER realistically say — including their specific quirks, mistakes, and personality?\n"
+            "4. Am I about to repeat something I already said? If yes, say something completely different.\n\n"
+
+            "═══ INTELLIGENCE RULES ═══\n"
+            "- ONLY reference details the scammer actually mentioned. Check the CONTEXT section below for exact amounts, UPI IDs, links, and names they used.\n"
+            "- If the scammer says 'send $500', refer to '$500' — don't randomly change it to '$50' or '$5000' unless your character is genuinely confused about the amount (and only do this ONCE, not every message).\n"
+            "- Pay close attention to what they just said and give a RELEVANT response. If they said 'send it in the app', your reply should relate to the app — not ask about something unrelated.\n"
+            "- If they repeat themselves or ignore your question, your CHARACTER should react naturally: get annoyed, confused, or suspicious — don't just ask the same thing again.\n"
+            "- Track the conversation flow. If you asked them a question and they answered it, acknowledge the answer before asking something new.\n\n"
+
+            "═══ REALISM RULES ═══\n"
+            "- Write exactly how your character would text on WhatsApp. Not how an AI would write.\n"
+            "- Keep messages short (1-2 sentences per bubble). Real people don't write paragraphs in WhatsApp.\n"
+            "- Use natural Indian English if your character would. Examples: 'one sec', 'give me a minute ya', 'what is this', 'I don't get it'.\n"
+            "- DO NOT use formal language: no 'However', 'Furthermore', 'I understand your concern', 'I appreciate'.\n"
+            "- DO NOT add filler like 'Ah', 'Oh', 'Hmm' at the start of every message.\n"
+            "- Occasional typos are fine if they fit your character, but don't overdo it.\n\n"
+
+            "═══ CONVERSATION CONTEXT ═══\n"
+            f"{context_block}\n\n"
+
+            f"═══ CURRENT TACTIC: {strategy} ═══\n"
+            f"What to do: {strat_do}\n"
+            f"What NOT to do: {strat_dont}\n"
+            f"Reply shape: {strat_shape}\n\n"
+
+            "═══ OUTPUT FORMAT ═══\n"
+            "Write ONLY the final WhatsApp message(s). Send MAXIMUM 1 or 2 bubbles. NEVER send 3 or more.\n"
+            "If sending 2 bubbles, separate them with |||.\n"
+            "Example: 'wait which amount was it again?|||is it 500 or 5000'\n"
+            "CRITICAL: If you send 2 bubbles, they MUST say different things. NEVER repeat the same meaning.\n"
+            "Keep each bubble under 20 words. No XML tags, no reasoning, no metadata — just the raw text message."
         )
 
         # --- Tracking link injection ---
         if tracking_url:
             system_prompt += (
-                f"\n\nIMPORTANT — INCLUDE THIS LINK: {tracking_url}\n"
-                "Weave this link into your reply naturally. Examples:\n"
-                "- 'i pasted the receipt here check {url}'\n"
-                "- 'the screenshot is here {url} see if it matches'\n"
-                "- 'ok check this {url} thats the proof u asked for'\n"
-                "Make it fit the conversation. Sound casual, not promotional."
+                f"\n\n═══ TRACKING LINK ═══\n"
+                f"Work this link into your reply naturally: {tracking_url}\n"
+                "Examples: 'i put the screenshot here check {url}', 'ok see this {url}'\n"
+                "Make it fit the conversation. Don't sound promotional."
             )
 
         messages: list[dict] = [{"role": "system", "content": system_prompt}]
         for msg in self._trim_history(request.history):
             messages.append({"role": msg.role, "content": msg.content})
 
-        had_payment_claim = any(
-            "already implied payment" in f for f in facts_lines
-        )
+        had_payment_claim = _PAID_ASSISTANT.search(
+            " ".join(m.content.lower() for m in request.history if m.role == "assistant")
+        ) is not None
 
         try:
             raw = await self._llm.generate_text_for_risk(
                 messages=messages,
                 risk_level="high",
                 temperature=self._temperature_for_strategy(strategy),
-                max_tokens=120 if tracking_url else 84,
-            ) or "wait the amount u said doesnt match|||which app is this for again"
+                max_tokens=400,
+            ) or "wait what?|||my app is acting up"
 
-            raw = raw.replace("\n", " ").strip()
-            if not raw:
-                logger.warning("LLM returned empty text for session=%s, using strategy fallback", session_id)
-                raw = "wait the amount u said doesnt match|||which app is this for again"
+            if not raw.strip():
+                logger.warning("LLM returned empty text for session=%s", session_id)
+                raw = "wait what?|||my app is acting up"
+
             reply_parts = self._parse_llm_segments(raw)
-            reply_parts = self._enforce_substance(reply_parts, strategy)
             reply_parts = self._maybe_repair_contradiction(reply_parts, had_payment_claim)
-            reply_parts = self._sms_casualize_parts(reply_parts)
+            reply_parts = self._light_cleanup(reply_parts)
             reply_text = " ".join(reply_parts) if len(reply_parts) > 1 else reply_parts[0]
-            logger.info("Baiting reply [LLM]: session=%s, strategy=%s, parts=%d, text='%s'",
-                        session_id, strategy, len(reply_parts), reply_text[:100])
+
+            logger.info(
+                "Baiting reply [LLM]: session=%s, strategy=%s, parts=%d, text='%s'",
+                session_id, strategy, len(reply_parts), reply_text[:120]
+            )
 
             incoming_len = self._incoming_user_chars(request.history)
             part_delay_seconds = self._compute_part_delays(len(reply_parts), incoming_len)
@@ -496,12 +429,11 @@ class BaitingAgent:
 
         except Exception as e:
             logger.error("Baiting agent error for session=%s: %s", session_id, e)
-            fb = "wait what|||my app glitched"
-            parts = self._parse_llm_segments(fb)
-            delays = self._compute_part_delays(len(parts), 0)
+            fb_parts = ["wait what", "my app glitched"]
+            delays = self._compute_part_delays(len(fb_parts), 0)
             return BaitingResponse(
                 reply_text="wait what my app glitched",
-                reply_parts=parts,
+                reply_parts=fb_parts,
                 response_delay_seconds=delays[0],
                 part_delay_seconds=delays,
                 processing_time_ms=(time.monotonic() - start_time) * 1000,

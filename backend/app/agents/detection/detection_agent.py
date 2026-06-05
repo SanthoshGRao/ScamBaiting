@@ -39,6 +39,7 @@ from app.agents.detection.detection_helpers import (
     build_user_explanation,
 )
 from app.agents.detection.link_analyzer import analyze_urls
+from app.agents.detection.media_analyzer import MediaAnalyzer
 from app.services.persistence_service import PersistenceService
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,7 @@ class DetectionAgent:
         self._pii_sanitizer = pii_sanitizer
         self._persistence = persistence
         self._llm_callback: LLMCallbackType | None = None
+        self._media_analyzer = MediaAnalyzer()
         # §1.3 fix: track background tasks to prevent GC and enable graceful shutdown
         self._pending_tasks: set[asyncio.Task] = set()
 
@@ -134,6 +136,9 @@ class DetectionAgent:
         if self._persistence:
             self._persistence.save_detection(verdict, normalized.original_text, normalized.sender)
 
+        # --- Media analysis ---
+        verdict = self._apply_media_analysis(request, verdict)
+
         return DetectionResponse(
             verdict=verdict,
             processing_time_ms=round(elapsed_ms, 2),
@@ -171,11 +176,56 @@ class DetectionAgent:
         if self._persistence:
             self._persistence.save_detection(verdict, normalized.original_text, normalized.sender)
 
+        # --- Media analysis ---
+        verdict = self._apply_media_analysis(request, verdict)
+
         return DetectionResponse(
             verdict=verdict,
             processing_time_ms=round(elapsed_ms, 2),
             llm_pending=False,
         )
+
+    # --- Private: Media Analysis ---
+
+    def _apply_media_analysis(
+        self, request: DetectionRequest, verdict: DetectionVerdict,
+    ) -> DetectionVerdict:
+        """Run media analysis if media_type is present and merge into verdict."""
+        if not request.media_type:
+            return verdict
+
+        media_verdict = self._media_analyzer.analyze(
+            media_type=request.media_type,
+            filename=request.media_filename or "",
+            surrounding_text=request.text,
+        )
+
+        verdict.media_risk_score = media_verdict.risk_score
+        verdict.media_flags = media_verdict.flags
+        verdict.media_type_detected = media_verdict.media_type
+
+        # Boost overall verdict if media is risky
+        if media_verdict.is_suspicious:
+            # Merge: take max of text and media risk
+            combined_conf = max(verdict.confidence, media_verdict.risk_score)
+            verdict.confidence = min(1.0, combined_conf)
+            verdict.is_scam = verdict.is_scam or media_verdict.risk_score >= 0.60
+            verdict.red_flags.extend(media_verdict.flags)
+
+            # Upgrade risk level if media is high risk
+            if media_verdict.risk_level == "high":
+                verdict.risk_level = RiskLevel.HIGH
+                verdict.recommended_action = RecommendedAction.BLOCK
+            elif media_verdict.risk_level == "medium" and verdict.risk_level == RiskLevel.SAFE:
+                verdict.risk_level = RiskLevel.MEDIUM
+                verdict.recommended_action = RecommendedAction.WARN_USER
+
+            logger.info(
+                "Media analysis boosted verdict: media_risk=%.2f, flags=%s",
+                media_verdict.risk_score, media_verdict.flags,
+            )
+
+        return verdict
 
     # --- Private: Normalization ---
 
@@ -248,8 +298,8 @@ class DetectionAgent:
             return False
         if self._llm_classifier is None:
             return False
-        # Always run LLM for any message over 20 chars — catch unknown scam patterns
-        if len(request.text.strip()) > 20:
+        # Always run LLM for any message over 5 chars — catch unknown scam patterns
+        if len(request.text.strip()) > 5:
             return True
         # Also run if rules found anything suspicious
         return rule_verdict.is_suspicious or rule_verdict.confidence > 0.1

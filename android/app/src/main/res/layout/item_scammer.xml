@@ -62,10 +62,10 @@
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnHandleAi"
+            android:id="@+id/btnShowChat"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Handle with AI"
+            android:text="Show Chat"
             android:textAllCaps="false"
             android:layout_marginTop="10dp"
             app:icon="@drawable/ic_chat" />

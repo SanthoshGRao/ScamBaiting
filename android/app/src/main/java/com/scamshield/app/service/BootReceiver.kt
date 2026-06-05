@@ -23,12 +23,12 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED -> {
-                Log.i(TAG, "Device booted — ScamShield NLS will auto-restart by system")
-                // NotificationListenerService auto-restarts if permission is granted
-                // No explicit start needed
+                Log.i(TAG, "Device booted — requesting NLS rebind")
+                NotificationListenerReviver.pingAfterPackageEvent(context)
             }
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                Log.i(TAG, "App updated — ScamShield NLS will re-bind")
+                Log.i(TAG, "App updated — requesting NLS rebind")
+                NotificationListenerReviver.pingAfterPackageEvent(context)
             }
             else -> {
                 Log.d(TAG, "Received: ${intent.action}")

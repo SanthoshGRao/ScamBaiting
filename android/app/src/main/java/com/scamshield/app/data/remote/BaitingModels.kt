@@ -28,4 +28,6 @@ data class BaitingResponseDto(
     val goal: String = "waste_time",
     /** Persist locally for the next /bait/reply; sent every turn (including stall). */
     val session_strategy: String = "",
+    val image_base64: String? = null,
+    val image_context: String? = null
 )

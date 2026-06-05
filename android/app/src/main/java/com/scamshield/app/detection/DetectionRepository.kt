@@ -14,7 +14,6 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.delay
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * DetectionRepository — Coordinates local rule engine + remote API.
@@ -41,7 +40,6 @@ class DetectionRepository @Inject constructor(
     }
     private var bearerToken: String? = null
     private var refreshToken: String? = null
-    private val inFlightRequests = ConcurrentHashMap<String, Boolean>()
 
     /**
      * Analyze a message through the full detection pipeline.
@@ -53,19 +51,23 @@ class DetectionRepository @Inject constructor(
      * @param source Source of the message (sms, notification, etc.).
      * @param sender Optional sender identifier.
      * @param privacyMode If true, skip all cloud API calls.
+     * @param skipLocalCache If true, skip Room cache read so `/detect/full` runs every time (notifications/SMS/etc.).
      * @return DetectionResult with verdict, source flag, and timing.
      */
     suspend fun analyzeMessage(
         text: String,
         source: InputSource = InputSource.NOTIFICATION,
         sender: String? = null,
-        privacyMode: Boolean = false
+        privacyMode: Boolean = false,
+        mediaType: String? = null,
+        mediaFilename: String? = null,
+        skipLocalCache: Boolean = false,
     ): DetectionResult = withContext(Dispatchers.Default) {
         val startTime = System.nanoTime()
         val messageHash = hashMessage(text)
 
-        // Step 1: Check cache (keyed by message body only — same sender, new text must re-analyze)
-        val cached = getCachedResult(messageHash)
+        // Step 1: Optional cache — realtime pipelines skip so identical scam text always hits the API.
+        val cached = if (!skipLocalCache) getCachedResult(messageHash) else null
         if (cached != null) {
             val elapsed = elapsedMs(startTime)
             Log.d(TAG, "Cache hit for $messageHash, %.1fms".format(elapsed))
@@ -85,14 +87,12 @@ class DetectionRepository @Inject constructor(
         var serverVerdict: DetectionVerdictDto? = null
         var isOffline = false
 
-        if (!privacyMode && inFlightRequests.putIfAbsent(messageHash, true) == null) {
+        if (!privacyMode) {
             try {
-                serverVerdict = sendToBackend(text, source, sender, ruleVerdict)
+                serverVerdict = sendToBackend(text, source, sender, ruleVerdict, mediaType, mediaFilename)
             } catch (e: Exception) {
                 Log.w(TAG, "Backend unavailable, using rule-only: ${e.message}")
                 isOffline = true
-            } finally {
-                inFlightRequests.remove(messageHash)
             }
         }
 
@@ -142,13 +142,17 @@ class DetectionRepository @Inject constructor(
         text: String,
         source: InputSource,
         sender: String?,
-        ruleVerdict: RuleVerdict
+        ruleVerdict: RuleVerdict,
+        mediaType: String?,
+        mediaFilename: String?
     ): DetectionVerdictDto? = withContext(Dispatchers.IO) {
         val request = DetectionRequest(
             text = text,
             source = source.value,
             sender = sender,
-            ruleVerdict = ruleVerdict.toDto()
+            ruleVerdict = ruleVerdict.toDto(),
+            media_type = mediaType,
+            media_filename = mediaFilename
         )
 
         try {
@@ -167,6 +171,11 @@ class DetectionRepository @Inject constructor(
                     attempt++
                     continue
                 }
+                val errSnippet = runCatching { response.errorBody()?.string()?.take(500) }.getOrNull()
+                Log.w(
+                    TAG,
+                    "Detection API HTTP ${response.code()} attempt=${attempt + 1}/$MAX_RETRIES body=$errSnippet"
+                )
                 attempt++
                 delay((attempt * 300).toLong())
             }
@@ -193,7 +202,8 @@ class DetectionRepository @Inject constructor(
                 bearerToken = token
                 token
             } else {
-                Log.e(TAG, "Login failed ${login.code()}")
+                val err = runCatching { login.errorBody()?.string() }.getOrNull()
+                Log.e(TAG, "Login failed code=${login.code()} body=$err")
                 null
             }
         } catch (e: Exception) {
@@ -324,7 +334,25 @@ data class DetectionResult(
 
     /** Whether this result should trigger a user alert */
     val shouldAlert: Boolean
-        get() = bestConfidence >= 0.30f
+        get() {
+            val s = serverVerdict
+            val rv = ruleVerdict
+            if (s != null) {
+                if (s.is_scam && s.confidence >= 0.20f) return true
+                if (s.risk_level.equals("high", ignoreCase = true) ||
+                    s.risk_level.equals("critical", ignoreCase = true)
+                ) return true
+            }
+            // When server says NOT scam, its "confidence" often means confidence-in-safe — do not use it for firing alerts.
+            val forThreshold = when {
+                s == null -> maxOf(rv.confidence, 0f)
+                s.is_scam -> maxOf(s.confidence, rv.confidence)
+                else -> rv.confidence
+            }
+            if (forThreshold >= 0.30f) return true
+            if ((rv.isSuspicious || rv.matchedRules.isNotEmpty()) && rv.confidence >= 0.25f) return true
+            return false
+        }
 
     /** Whether enhanced (LLM) detection was used */
     val isEnhanced: Boolean

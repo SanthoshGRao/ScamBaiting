@@ -31,8 +31,11 @@ abstract class BaitingDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract suspend fun insertMessage(message: BaitingMessageEntity)
 
-    @Query("SELECT * FROM baiting_messages WHERE senderId = :senderId ORDER BY timestamp ASC")
+    @Query("SELECT * FROM baiting_messages WHERE senderId = :senderId ORDER BY id ASC")
     abstract suspend fun getMessagesForSender(senderId: String): List<BaitingMessageEntity>
+
+    @Query("SELECT * FROM baiting_messages WHERE senderId = :senderId ORDER BY id ASC")
+    abstract fun observeMessagesForSender(senderId: String): kotlinx.coroutines.flow.Flow<List<BaitingMessageEntity>>
 
     @Transaction
     open suspend fun addMessageAndUpdateSession(message: BaitingMessageEntity) {
@@ -45,6 +48,9 @@ abstract class BaitingDao {
 
     @Query("UPDATE baiting_sessions SET currentStrategy = :strategy WHERE senderId = :senderId")
     abstract suspend fun updateSessionStrategy(senderId: String, strategy: String)
+
+    @Query("DELETE FROM baiting_messages WHERE senderId = :senderId")
+    abstract suspend fun deleteMessagesForSender(senderId: String)
 
     @Query("DELETE FROM baiting_sessions")
     abstract suspend fun deleteAllSessions()

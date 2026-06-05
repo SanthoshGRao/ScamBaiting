@@ -385,7 +385,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 <div class="logo">UPI Payment</div>
 <div class="status">✓ Transaction Successful</div>
 <div class="row"><span class="label">Amount</span><span class="value">₹60.00</span></div>
-<div class="row"><span class="label">To</span><span class="value">CANE PUB</span></div>
+<div class="row"><span class="label">To</span><span class="value">Amazon</span></div>
 <div class="row"><span class="label">Ref No</span><span class="value">647027176320</span></div>
 <div class="row"><span class="label">Date</span><span class="value">14 Apr 2026</span></div>
 <div class="row"><span class="label">Status</span><span class="value" style="color:#2e7d32">Completed</span></div>

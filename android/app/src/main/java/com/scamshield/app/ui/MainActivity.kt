@@ -5,13 +5,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.scamshield.app.R
 import com.scamshield.app.databinding.ActivityMainBinding
+import com.scamshield.app.service.NotificationListenerReviver
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * MainActivity — Navigation host with bottom navigation bar.
- *
- * Manages three fragments: Dashboard, Analytics, Settings.
- * Uses fragment transactions with custom animations.
  */
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -40,6 +38,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        NotificationListenerReviver.pingFromUi(this)
+    }
+
+    // --- Navigation ---
 
     private fun syncBottomNavToTag(tag: String?) {
         val id = when (tag) {

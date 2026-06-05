@@ -15,6 +15,7 @@ from app.models.baiting_models import BaitingRequest, BaitingResponse
 from app.agents.strategy.baiting_agent import BaitingAgent
 from app.agents.strategy.strategy_agent import StrategyAgent
 from app.api.tracking_routes import create_tracking_link, get_tracking_url
+from app.deception.engine import DeceptionEngine, IMAGE_REQUEST_PATTERN, extract_payment_context
 from app.providers.llm_classifier import create_llm_provider, LLMSettings
 from app.security.auth import get_current_user
 from app.security.rate_limit import rate_limiter
@@ -102,9 +103,31 @@ async def generate_reply(
                 )
 
         response = await _generate(agent, bait_request, tracking_url=tracking_url)
+
+        # --- Image Generation: Check if scammer asked for a screenshot ---
+        image_base64 = None
+        image_context = None
+        last_user_msg = next(
+            (m.content for m in reversed(request.history) if m.role == "user"), ""
+        )
+        if IMAGE_REQUEST_PATTERN.search(last_user_msg):
+            try:
+                payment_ctx = extract_payment_context(request.history)
+                engine = DeceptionEngine()
+                image_base64 = engine.generate_contextual_screenshot(payment_ctx)
+                image_context = payment_ctx.get("screenshot_type", "payment_proof")
+                logger.info(
+                    "Generated fake screenshot for session=%s: type=%s",
+                    request.session_id, image_context,
+                )
+            except Exception as img_err:
+                logger.warning("Image generation failed: %s", img_err)
+
         response = response.model_copy(update={
             "session_strategy": selection.strategy,
             "tracking_url": tracking_url,
+            "image_base64": image_base64,
+            "image_context": image_context,
         })
         strategy_for_session = selection.strategy
 

@@ -12,6 +12,7 @@ import hashlib
 import io
 import logging
 import time
+import re
 from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -337,3 +338,167 @@ class DeceptionEngine:
         buffer = io.BytesIO()
         img.save(buffer, format="JPEG", quality=82)
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    # --- Contextual Screenshot Generation for Baiting ---
+
+    def generate_contextual_screenshot(self, context: dict) -> str:
+        """
+        Generate a context-aware fake screenshot using conversation data.
+
+        Args:
+            context: dict with keys like amount, upi_id, bank, recipient,
+                     date, screenshot_type (payment_proof, error_screen, otp_screen)
+
+        Returns:
+            Base64-encoded JPEG string
+        """
+        screenshot_type = context.get("screenshot_type", "payment_proof")
+
+        if screenshot_type == "error_screen":
+            img = self._generate_error_screen(context)
+        elif screenshot_type == "otp_screen":
+            img = self._generate_otp_screen(context)
+        elif screenshot_type == "receipt":
+            img = self._generate_receipt(context)
+        else:
+            img = self._generate_bank_screenshot(context)
+
+        img = self._apply_realism(img)
+        return self._image_to_base64(img)
+
+    def _generate_error_screen(self, params: dict) -> Image.Image:
+        """Generate a fake payment error/pending screenshot."""
+        width, height = 1080, 1920
+        img = Image.new("RGB", (width, height), color=(18, 18, 24))
+        draw = ImageDraw.Draw(img)
+
+        amount = params.get("amount", self._fake_data.fake_amount_raw())
+        bank = params.get("bank", "UPI")
+        upi_id = params.get("upi_id", "")
+
+        # Status bar
+        draw.rectangle([(0, 0), (width, 80)], fill=(18, 18, 24))
+        self._draw_text(draw, "9:41", (40, 25), size=28, color=(255, 255, 255))
+
+        # Bank header
+        draw.rectangle([(0, 80), (width, 220)], fill=(200, 50, 50))
+        self._draw_text(draw, bank, (width // 2, 130), size=36,
+                        color=(255, 255, 255), anchor="mt")
+        self._draw_text(draw, "Payment Status", (width // 2, 180), size=24,
+                        color=(255, 200, 200), anchor="mt")
+
+        # Error icon
+        center_y = 400
+        draw.ellipse(
+            [(width // 2 - 80, center_y - 80),
+             (width // 2 + 80, center_y + 80)],
+            fill=(220, 50, 50)
+        )
+        self._draw_text(draw, "!", (width // 2, center_y), size=72,
+                        color=(255, 255, 255), anchor="mm")
+
+        # Error message
+        self._draw_text(draw, "Transaction Pending", (width // 2, center_y + 130),
+                        size=32, color=(220, 50, 50), anchor="mt")
+        self._draw_text(draw, f"\u20b9{amount:,}.00", (width // 2, center_y + 200),
+                        size=48, color=(255, 255, 255), anchor="mt")
+
+        # Details card
+        card_y = center_y + 320
+        draw.rounded_rectangle(
+            [(60, card_y), (width - 60, card_y + 350)],
+            radius=20, fill=(30, 30, 40)
+        )
+
+        details = [
+            ("Status", "PENDING - Server Error"),
+            ("Amount", f"\u20b9{amount:,}.00"),
+            ("To", upi_id or self._fake_data.fake_name()),
+            ("Error Code", f"ERR-{random.randint(1000, 9999)}"),
+            ("Retry", "Please try again later"),
+        ]
+
+        y = card_y + 25
+        for label, value in details:
+            self._draw_text(draw, label, (100, y), size=22, color=(150, 150, 170))
+            val_color = (220, 80, 80) if "PENDING" in value or "Error" in label else (220, 220, 235)
+            self._draw_text(draw, value, (width - 100, y), size=22,
+                            color=val_color, anchor="rt")
+            y += 60
+
+        return img
+
+
+def extract_payment_context(history: list) -> dict:
+    """
+    Extract payment details from conversation history for screenshot generation.
+
+    Scans scammer messages for amounts, UPI IDs, bank names, account numbers.
+    """
+    import re
+    from datetime import datetime
+
+    context: dict = {
+        "screenshot_type": "payment_proof",
+    }
+
+    # Combine all messages for scanning
+    all_text = " ".join(
+        m.content if hasattr(m, "content") else str(m)
+        for m in history
+    ).lower()
+
+    # Extract amount
+    amount_match = re.search(
+        r'(?:rs\.?|₹|inr)\s*(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]+(?:\.\d{1,2})?)\s*(?:rs|rupee|inr)',
+        all_text, re.I,
+    )
+    if amount_match:
+        raw = (amount_match.group(1) or amount_match.group(2)).replace(",", "")
+        try:
+            context["amount"] = int(float(raw))
+        except ValueError:
+            pass
+
+    # Extract UPI ID
+    upi_match = re.search(r'[\w.+-]+@[\w]+', all_text)
+    if upi_match:
+        context["upi_id"] = upi_match.group(0)
+
+    # Extract bank name
+    banks = {
+        "sbi": "State Bank of India", "hdfc": "HDFC Bank",
+        "icici": "ICICI Bank", "axis": "Axis Bank",
+        "kotak": "Kotak Mahindra Bank", "idfc": "IDFC First Bank",
+        "bob": "Bank of Baroda", "pnb": "Punjab National Bank",
+        "phonepe": "PhonePe", "gpay": "Google Pay",
+        "paytm": "Paytm", "bhim": "BHIM UPI",
+    }
+    for key, name in banks.items():
+        if key in all_text:
+            context["bank"] = name
+            break
+
+    # Date: use current
+    context["date"] = datetime.now().strftime("%d %b %Y, %I:%M %p")
+
+    # Detect if scammer asked for error/pending screenshot
+    error_patterns = re.compile(
+        r'\b(error|fail|pending|not working|not going|problem|issue|stuck|declined)\b', re.I
+    )
+    if error_patterns.search(all_text):
+        context["screenshot_type"] = "error_screen"
+
+    return context
+
+
+# Regex to detect when scammer asks for a screenshot/proof
+IMAGE_REQUEST_PATTERN = re.compile(
+    r'\b(send|share|show|give|forward)\s+'
+    r'(me\s+)?(the\s+)?'
+    r'(screenshot|proof|receipt|photo|image|picture|pic|snap|'
+    r'payment\s*(?:screenshot|proof|receipt|confirmation)|'
+    r'transfer\s*(?:screenshot|proof|receipt)|'
+    r'transaction\s*(?:screenshot|proof|receipt|details))\b',
+    re.I,
+)

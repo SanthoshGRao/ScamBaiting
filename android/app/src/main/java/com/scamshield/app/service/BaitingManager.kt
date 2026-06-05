@@ -15,6 +15,7 @@ import com.scamshield.app.data.remote.ChatMessageDto
 import com.scamshield.app.data.remote.DetectionApiService
 import com.scamshield.app.data.remote.LoginRequestDto
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -38,7 +39,7 @@ class BaitingManager @Inject constructor(
          * Single knob for all AI reply waits (typing, server pauses, gaps, follow-up “reading” delays).
          * 1.0f = current/default behavior. Lower = faster (e.g. 0.3f for demos); higher = slower.
          */
-        private const val REPLY_TIME_MULTIPLIER = 0.35f
+        private const val REPLY_TIME_MULTIPLIER = 1.0f
 
         private const val MIN_TYPING_DELAY_MS = 2000L
         private const val MAX_TYPING_DELAY_MS = 25000L
@@ -54,11 +55,19 @@ class BaitingManager @Inject constructor(
         (ms.toDouble() * REPLY_TIME_MULTIPLIER).toLong().coerceAtLeast(0L)
 
     // In-memory cache of the latest RemoteInput and PendingIntent for auto-replying
-    data class ReplyAction(val intent: PendingIntent, val remoteInput: RemoteInput)
+    data class ReplyAction(val intent: PendingIntent, val remoteInput: RemoteInput, val packageName: String)
     private val activeReplyActions = ConcurrentHashMap<String, ReplyAction>()
     private val activeReadActions = ConcurrentHashMap<String, PendingIntent>()
+    private val senderMutexes = ConcurrentHashMap<String, kotlinx.coroutines.sync.Mutex>()
+    private val lastPackageForSender = ConcurrentHashMap<String, String>()
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(
+        SupervisorJob() +
+            Dispatchers.IO +
+            CoroutineExceptionHandler { _, t ->
+                Log.e(TAG, "Baiting worker failed", t)
+            }
+    )
     private var bearerToken: String? = null
 
     // Current Persona (read from SharedPreferences dynamically)
@@ -69,16 +78,21 @@ class BaitingManager @Inject constructor(
     // Current prefs reader
     private val prefs get() = context.getSharedPreferences("scamshield_prefs", 0)
 
+    fun updateLastPackage(sender: String, packageName: String) {
+        val senderKey = canonicalSenderId(sender)
+        lastPackageForSender[senderKey] = packageName
+    }
+
     /**
      * Cache the latest notification reply action for a sender.
      */
-    fun cacheReplyAction(sender: String, replyIntent: PendingIntent, remoteInput: RemoteInput) {
+    fun cacheReplyAction(sender: String, packageName: String, replyIntent: PendingIntent, remoteInput: RemoteInput) {
         val senderKey = canonicalSenderId(sender)
-        activeReplyActions[senderKey] = ReplyAction(replyIntent, remoteInput)
+        activeReplyActions[senderKey] = ReplyAction(replyIntent, remoteInput, packageName)
         normalizeSenderKey(sender)?.let { alias ->
-            if (alias != senderKey) activeReplyActions[alias] = ReplyAction(replyIntent, remoteInput)
+            if (alias != senderKey) activeReplyActions[alias] = ReplyAction(replyIntent, remoteInput, packageName)
         }
-        Log.d(TAG, "Cached reply action for $senderKey")
+        Log.d(TAG, "Cached reply action for $senderKey (pkg=$packageName)")
     }
 
     fun cacheReadAction(sender: String, readIntent: PendingIntent) {
@@ -108,22 +122,27 @@ class BaitingManager @Inject constructor(
     }
 
     private fun findReplyAction(sender: String): ReplyAction? {
-        activeReplyActions[sender]?.let { return it }
+        val expectedPackage = lastPackageForSender[canonicalSenderId(sender)]
+        
+        fun isValid(action: ReplyAction?): Boolean {
+            return action != null && (expectedPackage == null || action.packageName == expectedPackage)
+        }
+
+        activeReplyActions[sender]?.let { if (isValid(it)) return it }
         normalizeSenderKey(sender)?.let { n ->
-            activeReplyActions[n]?.let { return it }
+            activeReplyActions[n]?.let { if (isValid(it)) return it }
             activeReplyActions.entries.forEach { (key, action) ->
-                if (normalizeSenderKey(key) == n) return action
+                if (normalizeSenderKey(key) == n && isValid(action)) return action
             }
         }
         // Fallback: try canonicalized key
         val canonical = canonicalSenderId(sender)
         if (canonical != sender) {
-            activeReplyActions[canonical]?.let { return it }
+            activeReplyActions[canonical]?.let { if (isValid(it)) return it }
         }
-        // Log all available keys for debugging
+        
         if (activeReplyActions.isNotEmpty()) {
-            Log.w(TAG, "Reply action NOT FOUND for '$sender' (canonical='$canonical'). " +
-                "Available keys: ${activeReplyActions.keys.joinToString()}")
+            Log.w(TAG, "Reply action NOT FOUND or WRONG PACKAGE for '$sender' (expectedPkg=$expectedPackage).")
         } else {
             Log.w(TAG, "Reply action NOT FOUND for '$sender': NO reply actions cached at all.")
         }
@@ -166,10 +185,37 @@ class BaitingManager @Inject constructor(
             )
         )
 
-        // 3. Generate and send reply asynchronously so we don't block callers (like BroadcastReceivers that ANR after 10s)
+        // 3. Generate and send reply asynchronously
         Log.i(TAG, "Baiting session started for $senderKey. Generating reply asynchronously…")
         scope.launch {
             generateAndSendReply(senderKey)
+        }
+    }
+
+    suspend fun forceStartOrResumeSession(sender: String, fallbackMessage: String) {
+        val senderKey = canonicalSenderId(sender)
+        val session = baitingDao.getSession(senderKey)
+        if (session == null) {
+            startBaitingSession(senderKey, fallbackMessage)
+        } else {
+            if (!session.isActive) reactivateBaitingSession(senderKey)
+            
+            // Check if we need to generate a reply
+            val msgs = baitingDao.getMessagesForSender(senderKey)
+            if (msgs.isNotEmpty() && msgs.last().role == "user") {
+                Log.i(TAG, "Resuming session for $senderKey. Generating reply for last user message…")
+                scope.launch { generateAndSendReply(senderKey) }
+            } else if (msgs.isEmpty()) {
+                baitingDao.addMessageAndUpdateSession(
+                    BaitingMessageEntity(
+                        senderId = senderKey,
+                        role = "user",
+                        content = fallbackMessage,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+                scope.launch { generateAndSendReply(senderKey) }
+            }
         }
     }
 
@@ -183,10 +229,31 @@ class BaitingManager @Inject constructor(
     }
 
     /**
+     * Get the time elapsed (in ms) since the last message received from the user (scammer) in the session.
+     */
+    suspend fun getTimeSinceLastUserMessage(sender: String): Long? {
+        val senderKey = canonicalSenderId(sender)
+        val history = baitingDao.getMessagesForSender(senderKey)
+        val lastUserMessage = history.lastOrNull { it.role == "user" }
+        return lastUserMessage?.let { System.currentTimeMillis() - it.timestamp }
+    }
+
+    /**
      * Handle an incoming message for an active baiting session.
      */
     suspend fun handleIncomingMessage(sender: String, messageText: String) {
         val senderKey = canonicalSenderId(sender)
+        
+        // Debounce: prevent duplicate notifications from causing duplicate DB entries and AI replies
+        val history = baitingDao.getMessagesForSender(senderKey)
+        val lastMessage = history.lastOrNull()
+        if (lastMessage != null && lastMessage.role == "user" && 
+            lastMessage.content == messageText && 
+            System.currentTimeMillis() - lastMessage.timestamp < 2000L) {
+            Log.i(TAG, "Skipping duplicate incoming message for $senderKey (debounced)")
+            return
+        }
+
         Log.i(TAG, "Intercepted message for active baiting session: $senderKey")
 
         // Save incoming message
@@ -293,15 +360,22 @@ class BaitingManager @Inject constructor(
         delay(scaled)
     }
 
+    private fun getSenderMutex(senderKey: String): kotlinx.coroutines.sync.Mutex {
+        return senderMutexes.computeIfAbsent(senderKey) { kotlinx.coroutines.sync.Mutex() }
+    }
+
     private suspend fun generateAndSendReply(sender: String) {
         val senderKey = canonicalSenderId(sender)
+        val mutex = getSenderMutex(senderKey)
 
-        val history = baitingDao.getMessagesForSender(senderKey)
-        val scammerUserTurns = history.count { it.role == "user" }
-        delayBeforeReplyToFollowUpScammer(history)
-        val session = baitingDao.getSession(senderKey)
-        val strategyForRequest = session?.currentStrategy?.takeIf { it.isNotBlank() } ?: "CONFUSION"
-        val request = BaitingRequestDto(
+        mutex.lock()
+        try {
+            val history = baitingDao.getMessagesForSender(senderKey)
+            val scammerUserTurns = history.count { it.role == "user" }
+            delayBeforeReplyToFollowUpScammer(history)
+            val session = baitingDao.getSession(senderKey)
+            val strategyForRequest = session?.currentStrategy?.takeIf { it.isNotBlank() } ?: "CONFUSION"
+            val request = BaitingRequestDto(
             sender_id = senderKey,
             session_id = senderKey,
             persona = currentPersona,
@@ -311,8 +385,7 @@ class BaitingManager @Inject constructor(
             history = history.map { ChatMessageDto(role = it.role, content = it.content) }
         )
 
-        try {
-            var token = ensureToken()
+        var token = ensureToken()
             if (token == null) {
                 Log.e(TAG, "Bait API skipped: login failed (no token). Check BASE_URL and admin credentials.")
                 return
@@ -362,18 +435,27 @@ class BaitingManager @Inject constructor(
                         markNotificationAsRead(senderKey)
                     }
 
+                    // Strip commas from AI reply as requested by user
+                    val cleanedPart = part.replace(",", "")
+
                     // Save AI reply chunk to DB
                     baitingDao.addMessageAndUpdateSession(
                         BaitingMessageEntity(
                             senderId = senderKey,
                             role = "assistant",
-                            content = part,
+                            content = cleanedPart,
                             timestamp = System.currentTimeMillis()
                         )
                     )
 
+                    // Extract and share image if present and this is the last chunk
+                    var imageUri: android.net.Uri? = null
+                    if (index == parts.lastIndex && body.image_base64 != null) {
+                        imageUri = com.scamshield.app.util.ImageHelper.saveBase64ToCache(context, body.image_base64)
+                    }
+
                     // Send each chunk via Android RemoteInput
-                    sendAiReplyToApp(senderKey, part)
+                    sendAiReplyToApp(senderKey, cleanedPart, imageUri)
                 }
 
                 body.session_strategy.takeIf { it.isNotBlank() }?.let { st ->
@@ -388,6 +470,8 @@ class BaitingManager @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Network failure generating reply", e)
+        } finally {
+            mutex.unlock()
         }
     }
 
@@ -408,7 +492,7 @@ class BaitingManager @Inject constructor(
         return token
     }
 
-    private fun sendAiReplyToApp(sender: String, replyText: String) {
+    private fun sendAiReplyToApp(sender: String, replyText: String, imageUri: android.net.Uri? = null) {
         val action = findReplyAction(sender)
         if (action == null) {
             Log.e(
@@ -426,10 +510,18 @@ class BaitingManager @Inject constructor(
 
             val fillInIntent = Intent().apply {
                 RemoteInput.addResultsToIntent(arrayOf(action.remoteInput), this, resultsBundle)
+                if (imageUri != null) {
+                    val imageResults = mutableMapOf<String, android.net.Uri>()
+                    imageResults["image/jpeg"] = imageUri
+                    RemoteInput.addDataResultToIntent(action.remoteInput, this, imageResults)
+                    // Grant read permission just in case
+                    this.clipData = android.content.ClipData.newRawUri("image", imageUri)
+                    this.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                }
             }
 
             action.intent.send(context, 0, fillInIntent)
-            Log.i(TAG, ">>> Successfully sent AI auto-reply to $sender: '$replyText'")
+            Log.i(TAG, ">>> Successfully sent AI auto-reply to $sender: '$replyText' (hasImage=${imageUri != null})")
         } catch (e: PendingIntent.CanceledException) {
             Log.e(TAG, "Failed to send reply: PendingIntent cancelled", e)
         }

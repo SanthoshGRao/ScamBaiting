@@ -157,28 +157,7 @@ class SettingsFragment : Fragment() {
             hapticFeedback()
         }
 
-        // Floating Overlay toggle
-        binding.switchOverlay.isChecked = prefs.getBoolean("floating_overlay", false)
-        binding.switchOverlay.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean("floating_overlay", checked).apply()
-            hapticFeedback()
-            if (checked && !Settings.canDrawOverlays(requireContext())) {
-                Toast.makeText(
-                    requireContext(),
-                    "Please grant overlay permission",
-                    Toast.LENGTH_LONG
-                ).show()
-                try {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        android.net.Uri.parse("package:${requireContext().packageName}")
-                    )
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    // Fallback
-                }
-            }
-        }
+        // Floating overlay toggle removed — not needed
     }
 
     // ═══════════════════════════════════════
@@ -393,7 +372,7 @@ class SettingsFragment : Fragment() {
             hapticFeedback()
             com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Clear All Data")
-                .setMessage("Are you sure you want to completely erase the detection cache, baiting history, active sessions, sender reputation data, and the verified scammer list?\n\nThis resets on-device learning so future messages from those numbers are analyzed again.")
+                .setMessage("Are you sure you want to completely erase the detection cache, baiting history, active sessions, sender reputation data, and the verified scammer list?\n\nThis resets on-device learning and clears live-notification deduplication so the same scenario (e.g. sandbox demo) can trigger detection again.")
                 .setPositiveButton("Continue") { dialog, _ ->
                     viewModel.clearCache()
                     

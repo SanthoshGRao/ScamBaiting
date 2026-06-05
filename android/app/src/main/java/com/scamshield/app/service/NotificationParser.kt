@@ -121,13 +121,13 @@ class NotificationParser @Inject constructor() {
 
         // Smart filter: skip group messages (Phase 1)
         if (isGroupMessage(effectiveTitle, text, packageName)) {
-            Log.d(TAG, "Skipped: group message from $packageName")
+            Log.d(TAG, "Skipped: group message from $packageName, title=$effectiveTitle")
             return null
         }
 
         // Outgoing / self preview (title "You", body "You: …", last line in expanded text, etc.)
         if (isOutgoingOrSelfPreview(effectiveTitle, text)) {
-            Log.d(TAG, "Skipped: outgoing/self preview from $packageName")
+            Log.d(TAG, "Skipped: outgoing/self preview from $packageName, title=$effectiveTitle, textStart=${text.take(30)}")
             return null
         }
 
@@ -143,11 +143,9 @@ class NotificationParser @Inject constructor() {
                         Log.d(TAG, "Skipped: MessagingStyle last line is outgoing (You:) in $packageName")
                         return null
                     }
-                    // If senderPerson is null, it typically means the message is from the local user (outgoing)
-                    if (lastMessage.senderPerson == null) {
-                        Log.d(TAG, "Skipped: local user's outgoing message in $packageName")
-                        return null
-                    }
+                    // NOTE: senderPerson == null does NOT reliably indicate outgoing on all devices/apps.
+                    // Many apps (WhatsApp, Telegram, SMS) don't set senderPerson for incoming messages.
+                    // We rely on the "You:" text-prefix check instead.
                 }
             } catch (e: Exception) {
                 // Ignore parsing errors, fall through to text regex
@@ -222,26 +220,54 @@ class NotificationParser @Inject constructor() {
      * Handles BigTextStyle and InboxStyle notifications.
      */
     private fun extractText(extras: Bundle): String? {
-        // Try big text first (expanded notification)
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
-        if (!bigText.isNullOrBlank()) return bigText.trim()
+        return try {
+            extractTextAggregated(extras)
+        } catch (t: Throwable) {
+            Log.w(TAG, "extractText failed (${t.javaClass.simpleName}), legacy fallback", t)
+            legacyTextFallback(extras)
+        }
+    }
 
-        // Fall back to regular text
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-        if (!text.isNullOrBlank()) return text.trim()
+    private fun legacyTextFallback(extras: Bundle): String? {
+        return extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()?.takeIf { it.isNotBlank() }
+            ?: extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString()?.trim()?.takeIf { it.isNotBlank() }
+    }
 
-        // Try summary text
-        val summary = extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString()
-        if (!summary.isNullOrBlank()) return summary.trim()
+    private fun extractTextAggregated(extras: Bundle): String? {
+        val chunks = mutableListOf<String>()
 
-        // Try text lines (InboxStyle / MessagingStyle)
+        fun addChunk(raw: CharSequence?) {
+            val t = raw?.toString()?.trim().orEmpty()
+            if (t.isNotBlank()) chunks.add(t)
+        }
+
+        // MessagingStyle — can throw Error/Throwable on some OEMs if extras are malformed
+        extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.let { raw ->
+            try {
+                val msgs = Notification.MessagingStyle.Message.getMessagesFromBundleArray(raw)
+                val joined = msgs
+                    .mapNotNull { it.text?.toString()?.trim() }
+                    .filter { it.isNotBlank() }
+                    .joinToString("\n")
+                addChunk(joined)
+            } catch (t: Throwable) {
+                Log.d(TAG, "MessagingStyle parse skipped: ${t.message}")
+            }
+        }
+
+        addChunk(extras.getCharSequence(Notification.EXTRA_BIG_TEXT))
+        addChunk(extras.getCharSequence(Notification.EXTRA_TEXT))
+        addChunk(extras.getCharSequence(Notification.EXTRA_SUB_TEXT))
+        addChunk(extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT))
+
         val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
             ?.mapNotNull { it?.toString()?.trim() }
             ?.filter { it.isNotBlank() }
             .orEmpty()
-        if (lines.isNotEmpty()) return lines.last()
+        if (lines.isNotEmpty()) addChunk(lines.last())
 
-        return null
+        return chunks.maxByOrNull { it.length } ?: legacyTextFallback(extras)
     }
 
     /**

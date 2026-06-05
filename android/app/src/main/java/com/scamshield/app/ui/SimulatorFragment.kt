@@ -388,13 +388,20 @@ class SimulatorFragment : Fragment() {
     }
 
     private fun addMessage(text: String, isScammer: Boolean) {
+        // Strip commas from AI (non-scammer) replies as requested by user
+        val processedText = if (!isScammer) text.replace(",", "") else text
+        
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val msg = SimMessage(text, isScammer, timeFormat.format(Date()))
+        val msg = SimMessage(processedText, isScammer, timeFormat.format(Date()))
         chatMessages.add(msg)
         messageCount++
         typingRevealIndex = chatMessages.size - 1
         chatAdapter.notifyItemInserted(chatMessages.size - 1)
-        binding.rvChatMessages.scrollToPosition(chatMessages.size - 1)
+        
+        // Ensure scroll happens after layout to prevent messages going out of screen
+        binding.rvChatMessages.post {
+            binding.rvChatMessages.scrollToPosition(chatMessages.size - 1)
+        }
         binding.tvSessionInfo.text = "$messageCount msgs"
     }
 
@@ -518,6 +525,12 @@ class SimulatorFragment : Fragment() {
                     if (_binding == null) return
                     idx = (idx + step).coerceAtMost(full.length)
                     tv.text = full.take(idx)
+                    
+                    // Auto-scroll to keep expanding text visible
+                    if (position == chatMessages.size - 1) {
+                        _binding?.rvChatMessages?.scrollToPosition(position)
+                    }
+
                     if (idx < full.length) {
                         handler.postDelayed(this, delayMs)
                     } else {

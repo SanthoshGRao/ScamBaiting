@@ -27,8 +27,7 @@
             <ImageView
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:src="@drawable/ic_shield"
-                app:tint="@color/primary"
+                android:src="@mipmap/ic_launcher"
                 android:contentDescription="ScamShield" />
 
             <TextView

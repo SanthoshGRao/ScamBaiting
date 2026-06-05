@@ -7,6 +7,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -19,7 +20,7 @@ import javax.inject.Singleton
  *
  * Configuration:
  * - Base URL: Configurable (defaults to emulator localhost)
- * - Timeout: 10s connect, 15s read (accommodates LLM latency)
+ * - Timeout: generous read window for /detect/full and /bait/reply (LLM latency)
  * - Logging: Body-level in debug, none in release
  * - GSON: lenient parsing, snake_case field names
  */
@@ -29,17 +30,30 @@ object NetworkModule {
 
     private val BASE_URL = BuildConfig.BASE_URL
 
+    /** Ngrok free tier returns an HTML interstitial unless this header is set — breaks JSON login/detection. */
+    private val tunnelBypassInterceptor = Interceptor { chain ->
+        val req = chain.request().newBuilder()
+            .header("ngrok-skip-browser-warning", "true")
+            .build()
+        chain.proceed(req)
+    }
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY // NONE for release
+            level =
+                if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC
+                else HttpLoggingInterceptor.Level.NONE
         }
 
         return OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(150, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .addInterceptor(tunnelBypassInterceptor)
             .addInterceptor(logging)
             .build()
     }

@@ -82,20 +82,21 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <com.google.android.material.button.MaterialButton
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnOverlayIgnore"
-                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Ignore"
                 android:textSize="12sp"
                 android:textAllCaps="false"
-                app:strokeColor="@color/text_secondary"
                 android:textColor="@color/text_secondary"
+                android:background="@drawable/bg_overlay_btn_outline"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
                 android:layout_marginEnd="6dp" />
 
-            <com.google.android.material.button.MaterialButton
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnOverlayBait"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -103,8 +104,10 @@
                 android:text="Auto-Reply"
                 android:textSize="12sp"
                 android:textAllCaps="false"
-                app:backgroundTint="@color/primary"
                 android:textColor="@color/text_primary"
+                android:background="@drawable/bg_overlay_btn_filled"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
                 android:layout_marginStart="6dp" />
         </LinearLayout>
     </LinearLayout>

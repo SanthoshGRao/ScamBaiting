@@ -170,4 +170,7 @@
     <!-- General -->
     <string name="version_label">v1.0.0</string>
     <string name="app_tagline">AI-Powered Scam Detection &amp; Response</string>
+
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_description">ScamShield reads messages on your screen to detect scams in real-time. This includes text messages, shared images, documents, APK files, and suspicious links in WhatsApp, Telegram, and SMS apps. No data is stored or shared — analysis happens locally and on your private backend.</string>
 </resources>

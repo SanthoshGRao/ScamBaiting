@@ -30,12 +30,14 @@ class ScammerRepository @Inject constructor(
     suspend fun upsertHighRisk(phone: String, message: String) = withContext(Dispatchers.IO) {
         val normalizedPhone = canonicalSenderId(phone)
         if (normalizedPhone.isBlank()) return@withContext
+        val existing = scammerDao.getByPhone(normalizedPhone)
         scammerDao.upsert(
             ScammerEntity(
                 phoneNumber = normalizedPhone,
                 lastMessage = message,
                 riskLevel = "HIGH",
-                isActive = true
+                isActive = true,
+                aiEnabled = existing?.aiEnabled ?: false
             )
         )
         syncRegister(normalizedPhone, message)
@@ -68,15 +70,28 @@ class ScammerRepository @Inject constructor(
         try {
             val response = apiService.getScammerHistory("Bearer $token", normalizedPhone)
             val items = response.body()?.history.orEmpty()
-            items.forEach { item ->
-                baitingDao.insertMessage(
-                    BaitingMessageEntity(
-                        senderId = normalizedPhone,
-                        role = item.role,
-                        content = item.content,
-                        timestamp = System.currentTimeMillis()
+            
+            if (items.isNotEmpty()) {
+                if (baitingDao.getSession(normalizedPhone) == null) {
+                    baitingDao.createSession(
+                        com.scamshield.app.data.local.entity.BaitingSessionEntity(
+                            senderId = normalizedPhone,
+                            persona = "unknown",
+                            startTime = System.currentTimeMillis()
+                        )
                     )
-                )
+                }
+                baitingDao.deleteMessagesForSender(normalizedPhone)
+                items.forEach { item ->
+                    baitingDao.insertMessage(
+                        BaitingMessageEntity(
+                            senderId = normalizedPhone,
+                            role = item.role,
+                            content = item.content,
+                            timestamp = System.currentTimeMillis() // or item.timestamp if available, but backend schema might not have it mapped exactly, using currentTime
+                        )
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to sync history", e)
