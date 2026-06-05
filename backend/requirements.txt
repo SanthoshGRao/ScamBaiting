@@ -12,6 +12,7 @@ alembic>=1.13.2
 psycopg2-binary>=2.9.9
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt==3.2.2
 tenacity>=8.4.2
 slowapi>=0.1.9
 pillow>=10.3.0
