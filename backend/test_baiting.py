@@ -1,14 +1,14 @@
 import asyncio
 import logging
 from app.agents.strategy.baiting_agent import BaitingAgent
-from app.providers.llm_classifier import build_llm_provider
+from app.providers.llm_classifier import create_llm_provider
 from app.models.baiting_models import BaitingRequest, ChatMessage
 
 logging.basicConfig(level=logging.INFO)
 
 async def test_baiting():
     # Setup
-    llm = build_llm_provider("openai")
+    llm = create_llm_provider("openai")
     agent = BaitingAgent(llm)
 
     request = BaitingRequest(

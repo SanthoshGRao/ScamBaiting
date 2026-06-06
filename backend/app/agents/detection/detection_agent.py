@@ -423,7 +423,10 @@ class DetectionAgent:
         w_llm = self._settings.llm_weight
         sender_weight = 0.15
         link_risk_score, domain_flags = analyze_urls(normalized.urls)
-        base = (w_rule * rule_based.confidence) + (w_llm * llm.confidence)
+        
+        # Take the maximum confidence from either engine to prevent dilution
+        # and ensure high recall for scam detection.
+        base = max(rule_based.confidence, llm.confidence)
         merged_conf = min(max(base + (sender_weight * rule_based.sender_score) + (0.1 * link_risk_score), 0.0), 1.0)
 
         risk_level = classify_risk(merged_conf, self._settings)
