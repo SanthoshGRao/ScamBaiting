@@ -38,6 +38,25 @@ object NetworkModule {
         chain.proceed(req)
     }
 
+    /** Dynamically fallback to Render cloud if localhost fails */
+    private val fallbackInterceptor = Interceptor { chain ->
+        val request = chain.request()
+        try {
+            // Try the primary URL with a short connect timeout so it doesn't hang if your PC is offline
+            chain.withConnectTimeout(2, TimeUnit.SECONDS).proceed(request)
+        } catch (e: Exception) {
+            // If connection fails, switch the URL to the Render cloud backend
+            val fallbackUrl = request.url.newBuilder()
+                .scheme("https")
+                .host("scambaiting.onrender.com")
+                .port(443)
+                .build()
+            val fallbackRequest = request.newBuilder().url(fallbackUrl).build()
+            // Proceed with normal timeouts
+            chain.proceed(fallbackRequest)
+        }
+    }
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
@@ -54,6 +73,7 @@ object NetworkModule {
             .callTimeout(150, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .addInterceptor(tunnelBypassInterceptor)
+            .addInterceptor(fallbackInterceptor)
             .addInterceptor(logging)
             .build()
     }

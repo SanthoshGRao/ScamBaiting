@@ -20,7 +20,7 @@ android {
 
         // Backend URL — override via BuildConfig
         // Permanent Wi-Fi IP of the host PC running Uvicorn.
-        buildConfigField "String", "BASE_URL", '"http://192.168.29.184:8000/"' // Use 10.0.2.2 for Emulator, or your PC's Wi-Fi IP for a physical device
+        buildConfigField "String", "BASE_URL", '"https://scambaiting.onrender.com/"' // Point directly to Render backend
         buildConfigField "String", "AUTH_USERNAME", '"admin"'
         buildConfigField "String", "AUTH_PASSWORD", '"admin123"'
     }
