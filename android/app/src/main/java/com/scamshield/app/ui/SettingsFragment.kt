@@ -377,7 +377,10 @@ class SettingsFragment : Fragment() {
                     viewModel.clearCache()
                     
                     // Save timestamp to hide AI buttons for older scammers in the UI
-                    prefs.edit().putLong("last_cache_clear_time", System.currentTimeMillis()).apply()
+                    prefs.edit()
+                        .putLong("last_cache_clear_time", System.currentTimeMillis())
+                        .putLong("detection_runtime_generation", System.currentTimeMillis())
+                        .apply()
                     
                     hapticFeedback()
                     Toast.makeText(requireContext(), "All history and active sessions cleared", Toast.LENGTH_SHORT).show()
