@@ -18,6 +18,7 @@ import com.scamshield.app.data.remote.ScammerDnaDto
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Singleton
 class CloudReplyProvider @Inject constructor(
@@ -27,9 +28,36 @@ class CloudReplyProvider @Inject constructor(
 
     companion object {
         private const val TAG = "CloudReplyProvider"
+        private const val HEALTH_CACHE_MS = 30_000L
     }
 
     private var bearerToken: String? = null
+    private var lastHealthCheckAt: Long = 0L
+    private var lastHealthOk: Boolean = false
+
+    suspend fun isCloudReachable(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastHealthCheckAt < HEALTH_CACHE_MS) return lastHealthOk
+
+        val ok = withTimeoutOrNull(15_000L) {
+            try {
+                val response = apiService.healthCheck()
+                val reachable = response.isSuccessful
+                if (!reachable) {
+                    Log.w(TAG, "Cloud health check failed: code=${response.code()}")
+                }
+                reachable
+            } catch (e: Exception) {
+                Log.w(TAG, "Cloud health check failed", e)
+                false
+            }
+        } ?: false
+
+        lastHealthCheckAt = now
+        lastHealthOk = ok
+        Log.i(TAG, "Cloud reachable=$ok")
+        return ok
+    }
 
     override suspend fun generateReply(
         session: BaitingSessionEntity,

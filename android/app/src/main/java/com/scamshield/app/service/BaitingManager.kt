@@ -475,10 +475,16 @@ class BaitingManager @Inject constructor(
             var replyText = ""
             val isDemoMode = prefs.getBoolean("demo_mode", false)
             val networkUsable = hasUsableNetwork()
+            val cloudReachable = if (!isDemoMode && networkUsable) {
+                _engineStatus.value = EngineStatus.RECONNECTING
+                cloudReplyProvider.isCloudReachable()
+            } else {
+                false
+            }
 
             Log.i(
                 TAG,
-                "Reply provider selection for $senderKey: demoMode=$isDemoMode, networkUsable=$networkUsable, status=${_engineStatus.value}"
+                "Reply provider selection for $senderKey: demoMode=$isDemoMode, networkUsable=$networkUsable, cloudReachable=$cloudReachable, status=${_engineStatus.value}"
             )
 
             if (isDemoMode) {
@@ -491,9 +497,12 @@ class BaitingManager @Inject constructor(
                     plan?.dna ?: ScammerDnaProfileEntity(senderId = senderKey),
                     plan?.knownIntelligence.orEmpty()
                 )
-            } else if (!networkUsable) {
+            } else if (!networkUsable || !cloudReachable) {
                 _engineStatus.value = EngineStatus.OFFLINE_ACTIVE
-                Log.i(TAG, "Using offline reply engine because validated internet is unavailable")
+                Log.i(
+                    TAG,
+                    "Using offline reply engine because ${if (!networkUsable) "validated internet is unavailable" else "Render cloud is unreachable"}"
+                )
                 replyText = offlineReplyEngine.generateReply(
                     session, history, latestMessage,
                     plan?.mission ?: MissionEntity(sessionId = senderKey, senderId = senderKey, missionType = "WASTE_MAXIMUM_TIME"),
