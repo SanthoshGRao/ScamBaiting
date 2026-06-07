@@ -32,7 +32,11 @@ class PatternDetector @Inject constructor() {
             RegexOption.IGNORE_CASE
         )
         private val ANY_URL = Regex(
-            "https?://[^\\s<>\"'\\])+]+",
+            "(?:https?://|www\\.)[^\\s<>\"'\\])+]+",
+            RegexOption.IGNORE_CASE
+        )
+        private val ANY_SUSPICIOUS_LINK = Regex(
+            "(?:https?://|www\\.)\\S+|\\b[a-z0-9.-]+\\.(?:tk|ml|ga|cf|gq|xyz|top|buzz|click|link|icu|shop|online|site)\\b\\S*",
             RegexOption.IGNORE_CASE
         )
 
@@ -103,6 +107,19 @@ class PatternDetector @Inject constructor() {
             "(?:enter|type|put|input).{0,15}(?:otp|o\\.t\\.p|code).{0,15}(?:here|below|now|this|link)",
             RegexOption.IGNORE_CASE
         )
+        private val KYC_OR_BANK_BLOCK = Regex(
+            "(?:kyc|pan|aadhaar|account|card|upi|netbanking).{0,35}(?:expire|expired|blocked|suspend|suspended|deactivate|deactivated|verify|update)|" +
+                "(?:sbi|hdfc|icici|axis|rbi|bank).{0,30}(?:alert|notice|kyc|blocked|verify|update)",
+            RegexOption.IGNORE_CASE
+        )
+        private val PARCEL_OR_CUSTOMS_SCAM = Regex(
+            "(?:parcel|package|courier|delivery|customs|india post).{0,35}(?:failed|held|blocked|fee|charge|duty|pay|update|verify)",
+            RegexOption.IGNORE_CASE
+        )
+        private val DANGEROUS_FILE = Regex(
+            "\\b\\S+\\.(?:apk|exe|scr|bat|cmd|msi|vbs|js|jar)\\b",
+            RegexOption.IGNORE_CASE
+        )
     }
 
     /**
@@ -121,6 +138,9 @@ class PatternDetector @Inject constructor() {
             }
             if (SUSPICIOUS_TLD.containsMatchIn(text)) {
                 matches.add(MatchedRule("pattern:suspicious_tld", 0.8f, "phishing"))
+            }
+            if (ANY_SUSPICIOUS_LINK.containsMatchIn(text)) {
+                matches.add(MatchedRule("pattern:suspicious_link", 0.55f, "phishing"))
             }
 
             // Financial patterns
@@ -176,6 +196,16 @@ class PatternDetector @Inject constructor() {
             }
             if (ENTER_OTP_HERE.containsMatchIn(text)) {
                 matches.add(MatchedRule("pattern:enter_otp_here", 0.80f, "phishing"))
+            }
+
+            if (KYC_OR_BANK_BLOCK.containsMatchIn(text)) {
+                matches.add(MatchedRule("pattern:kyc_bank_block", 0.75f, "impersonation"))
+            }
+            if (PARCEL_OR_CUSTOMS_SCAM.containsMatchIn(text)) {
+                matches.add(MatchedRule("pattern:parcel_customs_scam", 0.70f, "impersonation"))
+            }
+            if (DANGEROUS_FILE.containsMatchIn(text)) {
+                matches.add(MatchedRule("pattern:dangerous_file", 0.85f, "phishing"))
             }
 
             // Excessive caps (more than 50% uppercase in text > 20 chars)

@@ -12,6 +12,12 @@ class ChatMessage(BaseModel):
     role: str = Field(..., description="'user' for scammer, 'assistant' for AI")
     content: str = Field(...)
 
+class OfflineAnalyticsSyncDto(BaseModel):
+    detected_intent: str
+    selected_persona: str
+    selected_state: str
+    timestamp: int
+
 class BaitingRequest(BaseModel):
     """Request to generate a reply to a scammer."""
     sender_id: str = Field(..., description="Unique ID for the scammer")
@@ -21,6 +27,7 @@ class BaitingRequest(BaseModel):
     scam_category: str = Field(default="unknown", description="Category of scam detected")
     goal: str = Field(default="waste_time", description="Goal: waste_time or extract_information")
     history: List[ChatMessage] = Field(..., description="Conversation history including latest message")
+    offline_analytics: List[OfflineAnalyticsSyncDto] = Field(default_factory=list, description="Offline analytics events to sync")
 
 class BaitingResponse(BaseModel):
     """Generated response to send to the scammer."""

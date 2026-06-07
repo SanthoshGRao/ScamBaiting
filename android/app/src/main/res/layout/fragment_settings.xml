@@ -1107,6 +1107,91 @@
         </androidx.cardview.widget.CardView>
 
         <!-- ═══════════════════════════════════════ -->
+        <!-- ⚙️ SECTION: ENGINE STATUS                -->
+        <!-- ═══════════════════════════════════════ -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/ScamShield.SectionHeader"
+            android:text="ENGINE STATUS" />
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <!-- Engine Badge -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="14dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:src="@drawable/ic_dashboard"
+                        app:tint="@color/primary"
+                        android:layout_marginEnd="14dp"
+                        android:contentDescription="Engine" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Current Engine"
+                            android:textSize="15sp"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:id="@+id/tvEngineBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🟢 Online"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/risk_safe" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="14dp" />
+
+                <!-- Runtime Stats Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRuntimeStats"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="View Runtime Statistics"
+                    android:textSize="13sp"
+                    android:textAllCaps="false"
+                    app:icon="@drawable/ic_chart"
+                    app:iconGravity="textStart"
+                    app:iconSize="18dp"
+                    app:strokeColor="@color/primary_30" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ═══════════════════════════════════════ -->
         <!-- ℹ️ SECTION: ABOUT                       -->
         <!-- ═══════════════════════════════════════ -->
         <TextView

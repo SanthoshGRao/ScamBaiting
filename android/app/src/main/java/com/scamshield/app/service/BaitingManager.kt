@@ -2,18 +2,25 @@ package com.scamshield.app.service
 
 import android.app.PendingIntent
 import android.app.RemoteInput
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.telephony.SmsManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.scamshield.app.BuildConfig
 import com.scamshield.app.data.local.dao.BaitingDao
+import com.scamshield.app.data.local.dao.IntelligenceDao
+import com.scamshield.app.data.local.entity.IntelligenceItemEntity
+import com.scamshield.app.data.local.entity.MissionEntity
+import com.scamshield.app.data.local.entity.ScammerDnaProfileEntity
 import com.scamshield.app.data.local.entity.BaitingMessageEntity
 import com.scamshield.app.data.local.entity.BaitingSessionEntity
-import com.scamshield.app.data.remote.BaitingRequestDto
-import com.scamshield.app.data.remote.ChatMessageDto
-import com.scamshield.app.data.remote.DetectionApiService
-import com.scamshield.app.data.remote.LoginRequestDto
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +28,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import com.scamshield.app.service.providers.CloudReplyProvider
+import com.scamshield.app.detection.OfflineReplyEngine
+import com.scamshield.app.intelligence.MissionPlanner
+import com.scamshield.app.intelligence.EngagementEffectivenessEngine
+import com.scamshield.app.intelligence.ScammerDnaEngine
+import com.scamshield.app.intelligence.StrategyPlanner
+import com.scamshield.app.intelligence.StrategyOutcomeTracker
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.util.Locale
@@ -30,7 +47,14 @@ import java.util.concurrent.ConcurrentHashMap
 class BaitingManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val baitingDao: BaitingDao,
-    private val apiService: DetectionApiService
+    private val intelligenceDao: IntelligenceDao,
+    private val cloudReplyProvider: CloudReplyProvider,
+    private val offlineReplyEngine: OfflineReplyEngine,
+    private val scammerDnaEngine: ScammerDnaEngine,
+    private val missionPlanner: MissionPlanner,
+    private val strategyPlanner: StrategyPlanner,
+    private val engagementEffectivenessEngine: EngagementEffectivenessEngine,
+    private val strategyOutcomeTracker: StrategyOutcomeTracker
 ) {
     companion object {
         private const val TAG = "BaitingManager"
@@ -68,7 +92,16 @@ class BaitingManager @Inject constructor(
                 Log.e(TAG, "Baiting worker failed", t)
             }
     )
-    private var bearerToken: String? = null
+    
+    private val _engineStatus = MutableStateFlow(EngineStatus.ONLINE)
+    val engineStatus: StateFlow<EngineStatus> = _engineStatus.asStateFlow()
+    private val connectivityManager by lazy {
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    }
+
+    init {
+        startNetworkStatusMonitor()
+    }
 
     // Current Persona (read from SharedPreferences dynamically)
     private val currentPersona: String
@@ -102,6 +135,45 @@ class BaitingManager @Inject constructor(
             if (alias != senderKey) activeReadActions[alias] = readIntent
         }
         Log.d(TAG, "Cached read action for $senderKey")
+    }
+
+    fun hasReplyAction(sender: String): Boolean = findReplyAction(sender) != null
+
+    fun canReplyToSender(sender: String): Boolean = hasReplyAction(sender) || canSendSmsTo(sender)
+
+    fun clearRuntimeState() {
+        activeReplyActions.clear()
+        activeReadActions.clear()
+        lastPackageForSender.clear()
+        senderMutexes.clear()
+        Log.i(TAG, "Baiting runtime state cleared")
+    }
+
+    private fun startNetworkStatusMonitor() {
+        refreshNetworkStatus()
+        try {
+            connectivityManager.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = refreshNetworkStatus()
+                override fun onLost(network: Network) = refreshNetworkStatus()
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) = refreshNetworkStatus()
+                override fun onUnavailable() = refreshNetworkStatus()
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "Network status monitor unavailable", e)
+        }
+    }
+
+    private fun refreshNetworkStatus() {
+        _engineStatus.value = if (isNetworkUsable(connectivityManager)) EngineStatus.ONLINE else EngineStatus.OFFLINE_ACTIVE
+    }
+
+    private fun hasUsableNetwork(): Boolean = isNetworkUsable(connectivityManager)
+
+    private fun isNetworkUsable(cm: ConnectivityManager): Boolean {
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     private fun normalizeSenderKey(sender: String?): String? {
@@ -166,12 +238,14 @@ class BaitingManager @Inject constructor(
      */
     suspend fun startBaitingSession(sender: String, initialScamMessage: String) {
         val senderKey = canonicalSenderId(sender)
+        val plan = planEngagement(senderKey, initialScamMessage)
         // 1. Create session in DB
         baitingDao.createSession(
             BaitingSessionEntity(
                 senderId = senderKey,
                 persona = currentPersona,
-                startTime = System.currentTimeMillis()
+                startTime = System.currentTimeMillis(),
+                currentStrategy = plan.strategy
             )
         )
 
@@ -201,11 +275,13 @@ class BaitingManager @Inject constructor(
             if (!session.isActive) reactivateBaitingSession(senderKey)
             
             // Check if we need to generate a reply
-            val msgs = baitingDao.getMessagesForSender(senderKey)
-            if (msgs.isNotEmpty() && msgs.last().role == "user") {
+            val messages = baitingDao.getMessagesForSender(senderKey)
+            if (messages.isNotEmpty() && messages.last().role == "user") {
+                planEngagement(senderKey, messages.last().content)
                 Log.i(TAG, "Resuming session for $senderKey. Generating reply for last user message…")
                 scope.launch { generateAndSendReply(senderKey) }
-            } else if (msgs.isEmpty()) {
+            } else if (messages.isEmpty()) {
+                planEngagement(senderKey, fallbackMessage)
                 baitingDao.addMessageAndUpdateSession(
                     BaitingMessageEntity(
                         senderId = senderKey,
@@ -255,6 +331,7 @@ class BaitingManager @Inject constructor(
         }
 
         Log.i(TAG, "Intercepted message for active baiting session: $senderKey")
+        planEngagement(senderKey, messageText)
 
         // Save incoming message
         baitingDao.addMessageAndUpdateSession(
@@ -364,6 +441,23 @@ class BaitingManager @Inject constructor(
         return senderMutexes.computeIfAbsent(senderKey) { kotlinx.coroutines.sync.Mutex() }
     }
 
+    private data class EngagementPlan(
+        val mission: MissionEntity,
+        val strategy: String,
+        val dna: ScammerDnaProfileEntity,
+        val knownIntelligence: List<IntelligenceItemEntity>
+    )
+
+    private suspend fun planEngagement(senderKey: String, scammerMessage: String): EngagementPlan {
+        val dna = scammerDnaEngine.updateProfile(senderKey, senderKey, scammerMessage)
+        val mission = missionPlanner.assignMission(senderKey, senderKey, dna)
+        val strategy = strategyPlanner.chooseStrategy(senderKey, currentPersona, dna, mission)
+        baitingDao.updateSessionStrategy(senderKey, strategy)
+        val knownIntelligence = intelligenceDao.getIntelligenceItems(senderKey)
+        Log.i(TAG, "Engagement plan for $senderKey: mission=${mission.missionType}, strategy=$strategy, dnaCat=${dna.scamCategory}")
+        return EngagementPlan(mission, strategy, dna, knownIntelligence)
+    }
+
     private suspend fun generateAndSendReply(sender: String) {
         val senderKey = canonicalSenderId(sender)
         val mutex = getSenderMutex(senderKey)
@@ -372,129 +466,130 @@ class BaitingManager @Inject constructor(
         try {
             val history = baitingDao.getMessagesForSender(senderKey)
             val scammerUserTurns = history.count { it.role == "user" }
+            val latestMessage = history.lastOrNull { it.role == "user" }?.content ?: ""
             delayBeforeReplyToFollowUpScammer(history)
-            val session = baitingDao.getSession(senderKey)
-            val strategyForRequest = session?.currentStrategy?.takeIf { it.isNotBlank() } ?: "CONFUSION"
-            val request = BaitingRequestDto(
-            sender_id = senderKey,
-            session_id = senderKey,
-            persona = currentPersona,
-            current_strategy = strategyForRequest,
-            scam_category = "unknown",
-            goal = "waste_time",
-            history = history.map { ChatMessageDto(role = it.role, content = it.content) }
-        )
+            
+            val session = baitingDao.getSession(senderKey) ?: return
+            val plan = if (latestMessage.isNotBlank()) planEngagement(senderKey, latestMessage) else null
+            
+            var replyText = ""
+            val isDemoMode = prefs.getBoolean("demo_mode", false)
+            val networkUsable = hasUsableNetwork()
 
-        var token = ensureToken()
-            if (token == null) {
-                Log.e(TAG, "Bait API skipped: login failed (no token). Check BASE_URL and admin credentials.")
+            Log.i(
+                TAG,
+                "Reply provider selection for $senderKey: demoMode=$isDemoMode, networkUsable=$networkUsable, status=${_engineStatus.value}"
+            )
+
+            if (isDemoMode) {
+                _engineStatus.value = EngineStatus.DEMO_MODE
+                Log.i(TAG, "Using offline reply engine because demo mode is enabled")
+                replyText = offlineReplyEngine.generateReply(
+                    session, history, latestMessage,
+                    plan?.mission ?: MissionEntity(sessionId = senderKey, senderId = senderKey, missionType = "WASTE_MAXIMUM_TIME"),
+                    plan?.strategy ?: session.currentStrategy,
+                    plan?.dna ?: ScammerDnaProfileEntity(senderId = senderKey),
+                    plan?.knownIntelligence.orEmpty()
+                )
+            } else if (!networkUsable) {
+                _engineStatus.value = EngineStatus.OFFLINE_ACTIVE
+                Log.i(TAG, "Using offline reply engine because validated internet is unavailable")
+                replyText = offlineReplyEngine.generateReply(
+                    session, history, latestMessage,
+                    plan?.mission ?: MissionEntity(sessionId = senderKey, senderId = senderKey, missionType = "WASTE_MAXIMUM_TIME"),
+                    plan?.strategy ?: session.currentStrategy,
+                    plan?.dna ?: ScammerDnaProfileEntity(senderId = senderKey),
+                    plan?.knownIntelligence.orEmpty()
+                )
+            } else {
+                try {
+                    _engineStatus.value = EngineStatus.RECONNECTING
+                    Log.i(TAG, "Requesting GPT/cloud bait reply for $senderKey")
+                    replyText = cloudReplyProvider.generateReply(
+                        session, history, latestMessage,
+                        plan?.mission ?: MissionEntity(sessionId = senderKey, senderId = senderKey, missionType = "WASTE_MAXIMUM_TIME"),
+                        plan?.strategy ?: session.currentStrategy,
+                        plan?.dna ?: ScammerDnaProfileEntity(senderId = senderKey),
+                        plan?.knownIntelligence.orEmpty()
+                    )
+                    _engineStatus.value = EngineStatus.ONLINE
+                    Log.i(TAG, "GPT/cloud bait reply received for $senderKey (chars=${replyText.length})")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Network failed, switching to Offline Engine", e)
+                    _engineStatus.value = EngineStatus.OFFLINE_ACTIVE
+                    replyText = offlineReplyEngine.generateReply(
+                        session, history, latestMessage,
+                        plan?.mission ?: MissionEntity(sessionId = senderKey, senderId = senderKey, missionType = "WASTE_MAXIMUM_TIME"),
+                        plan?.strategy ?: session.currentStrategy,
+                        plan?.dna ?: ScammerDnaProfileEntity(senderId = senderKey),
+                        plan?.knownIntelligence.orEmpty()
+                    )
+                }
+            }
+
+            if (replyText.isBlank()) {
+                Log.e(TAG, "Both providers failed to generate reply")
                 return
             }
-            Log.i(TAG, "Calling bait/reply: historySize=${history.size}, sender=$senderKey")
-            var response = apiService.generateBaitingReply("Bearer $token", request)
-            if (response.code() == 401) {
-                Log.w(TAG, "Bait API401 — refreshing token and retrying once")
-                bearerToken = null
-                token = ensureToken()
-                if (token != null) {
-                    response = apiService.generateBaitingReply("Bearer $token", request)
-                }
-            }
 
-            if (response.isSuccessful && response.body() != null) {
-                val body = response.body()!!
-                val parts = body.reply_parts
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                    .ifEmpty { splitReplyText(body.reply_text) }
+            val parts = splitReplyText(replyText)
+            parts.forEachIndexed { index, part ->
+                // Default pauses since we no longer parse DTO natively
+                val pauseMs = pauseBeforeBubble(3) 
+                val typingDelay = calculateTypingDelay(part.length, index, scammerUserTurns)
+                val strategy = plan?.strategy ?: session.currentStrategy
+                val betweenGap = interBubbleHumanGap(index, part.length, strategy, scammerUserTurns)
+                val rawTotal = pauseMs + typingDelay + betweenGap
+                val totalDelay = scaleReplyDelayMs(rawTotal)
+                
+                delay(totalDelay)
 
-                if (parts.isEmpty()) {
-                    Log.e(TAG, "Bait API returned empty reply parts")
-                    return
+                if (index == 0) {
+                    markNotificationAsRead(senderKey)
                 }
 
-                parts.forEachIndexed { index, part ->
-                    val pauseSeconds = body.part_delay_seconds
-                        ?.getOrNull(index)
-                        ?.takeIf { it > 0 }
-                        ?: body.response_delay_seconds
-                    val pauseMs = pauseBeforeBubble(pauseSeconds)
-                    val typingDelay = calculateTypingDelay(part.length, index, scammerUserTurns)
-                    val betweenGap = interBubbleHumanGap(index, part.length, body.strategy_used, scammerUserTurns)
-                    val rawTotal = pauseMs + typingDelay + betweenGap
-                    val totalDelay = scaleReplyDelayMs(rawTotal)
+                val cleanedPart = part.replace(",", "")
+
+                baitingDao.addMessageAndUpdateSession(
+                    BaitingMessageEntity(
+                        senderId = senderKey,
+                        role = "assistant",
+                        content = cleanedPart,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+
+                sendAiReplyToApp(senderKey, cleanedPart)
+                if (index == parts.lastIndex && plan != null) {
+                    strategyPlanner.recordTurn(
+                        sessionId = senderKey,
+                        senderId = senderKey,
+                        mission = plan.mission,
+                        strategy = plan.strategy,
+                        persona = session.persona,
+                        scammerMessage = latestMessage,
+                        assistantReply = cleanedPart
+                    )
+                    val effectiveness = engagementEffectivenessEngine.updateEffectiveness(senderKey, plan.mission)
+                    strategyOutcomeTracker.recordOutcome(plan.mission, plan.strategy, session.persona, effectiveness)
                     Log.i(
                         TAG,
-                        "Simulating delay: ${totalDelay}ms (pause=$pauseMs typing=$typingDelay " +
-                            "betweenGap=$betweenGap part=$index, raw=${rawTotal}ms)"
+                        "Outcome updated for $senderKey: score=${effectiveness.effectivenessScore}, " +
+                            "mission=${plan.mission.missionType}, strategy=${plan.strategy}"
                     )
-                    delay(totalDelay)
-
-                    // Mark original incoming notification as read before sending the first AI chunk.
-                    if (index == 0) {
-                        markNotificationAsRead(senderKey)
-                    }
-
-                    // Strip commas from AI reply as requested by user
-                    val cleanedPart = part.replace(",", "")
-
-                    // Save AI reply chunk to DB
-                    baitingDao.addMessageAndUpdateSession(
-                        BaitingMessageEntity(
-                            senderId = senderKey,
-                            role = "assistant",
-                            content = cleanedPart,
-                            timestamp = System.currentTimeMillis()
-                        )
-                    )
-
-                    // Extract and share image if present and this is the last chunk
-                    var imageUri: android.net.Uri? = null
-                    if (index == parts.lastIndex && body.image_base64 != null) {
-                        imageUri = com.scamshield.app.util.ImageHelper.saveBase64ToCache(context, body.image_base64)
-                    }
-
-                    // Send each chunk via Android RemoteInput
-                    sendAiReplyToApp(senderKey, cleanedPart, imageUri)
                 }
-
-                body.session_strategy.takeIf { it.isNotBlank() }?.let { st ->
-                    baitingDao.updateSessionStrategy(senderKey, st)
-                }
-            } else {
-                val err = response.errorBody()?.string()
-                Log.e(
-                    TAG,
-                    "Bait API failed: code=${response.code()}, body=$err"
-                )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Network failure generating reply", e)
+            Log.e(TAG, "Error generating reply", e)
         } finally {
             mutex.unlock()
         }
     }
 
-    private suspend fun ensureToken(): String? {
-        bearerToken?.let { return it }
-        val response = apiService.login(
-            LoginRequestDto(
-                username = BuildConfig.AUTH_USERNAME,
-                password = BuildConfig.AUTH_PASSWORD
-            )
-        )
-        if (!response.isSuccessful) {
-            Log.e(TAG, "Login failed before baiting call: ${response.code()}")
-            return null
-        }
-        val token = response.body()?.access_token
-        bearerToken = token
-        return token
-    }
-
     private fun sendAiReplyToApp(sender: String, replyText: String, imageUri: android.net.Uri? = null) {
         val action = findReplyAction(sender)
         if (action == null) {
+            if (sendSmsReplyIfPossible(sender, replyText)) return
             Log.e(
                 TAG,
                 "Cannot reply to $sender: No cached RemoteInput. Open the chat app's notification " +
@@ -523,7 +618,43 @@ class BaitingManager @Inject constructor(
             action.intent.send(context, 0, fillInIntent)
             Log.i(TAG, ">>> Successfully sent AI auto-reply to $sender: '$replyText' (hasImage=${imageUri != null})")
         } catch (e: PendingIntent.CanceledException) {
+            clearReplyAction(sender)
+            if (sendSmsReplyIfPossible(sender, replyText)) return
             Log.e(TAG, "Failed to send reply: PendingIntent cancelled", e)
+        }
+    }
+
+    private fun clearReplyAction(sender: String) {
+        val canonical = canonicalSenderId(sender)
+        activeReplyActions.remove(sender)
+        activeReplyActions.remove(canonical)
+        normalizeSenderKey(sender)?.let { activeReplyActions.remove(it) }
+        Log.w(TAG, "Cleared stale reply action for $sender")
+    }
+
+    private fun canSendSmsTo(sender: String): Boolean {
+        if (!looksLikePhoneNumber(sender)) return false
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun looksLikePhoneNumber(sender: String): Boolean {
+        val digits = sender.count { it.isDigit() }
+        return digits >= 8 && sender.all { it.isDigit() || it == '+' || it == '-' || it == ' ' || it == '(' || it == ')' }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun sendSmsReplyIfPossible(sender: String, replyText: String): Boolean {
+        if (!canSendSmsTo(sender)) return false
+        return try {
+            val sms = SmsManager.getDefault()
+            val parts = sms.divideMessage(replyText)
+            sms.sendMultipartTextMessage(sender, null, parts, null, null)
+            Log.i(TAG, ">>> Successfully sent AI SMS reply to $sender: '$replyText'")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send SMS reply to $sender", e)
+            false
         }
     }
 

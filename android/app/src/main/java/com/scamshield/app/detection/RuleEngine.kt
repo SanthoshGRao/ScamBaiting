@@ -88,6 +88,8 @@ class RuleEngine @Inject constructor(
 
             // Calculate confidence score
             var confidence = calculateConfidence(allMatches)
+            val strongestRuleWeight = allMatches.maxOfOrNull { it.weight } ?: 0f
+            confidence = maxOf(confidence, confidenceFloorForStrongRule(strongestRuleWeight))
 
             // Apply sender history boost
             if (sender != null) {
@@ -100,7 +102,7 @@ class RuleEngine @Inject constructor(
 
             // Determine if suspicious — either meaningful confidence OR multiple rule matches
             // Use OR to avoid missing scams with single strong signals
-            val isSuspicious = confidence > 0.30f || allMatches.size >= 2
+            val isSuspicious = confidence >= 0.30f || strongestRuleWeight >= 0.55f || allMatches.size >= 2
 
             val elapsed = (System.nanoTime() - startTime) / 1_000_000.0
 
@@ -208,6 +210,13 @@ class RuleEngine @Inject constructor(
         }
 
         return score.coerceIn(0f, MAX_CONFIDENCE)
+    }
+
+    private fun confidenceFloorForStrongRule(weight: Float): Float = when {
+        weight >= 0.85f -> 0.85f
+        weight >= 0.70f -> 0.75f
+        weight >= 0.55f -> 0.65f
+        else -> 0f
     }
 
     /**

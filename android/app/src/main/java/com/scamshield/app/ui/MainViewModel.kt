@@ -19,7 +19,12 @@ import com.scamshield.app.detection.DetectionRepository
 import com.scamshield.app.detection.DetectionResult
 import com.scamshield.app.detection.KeywordMatcher
 import com.scamshield.app.detection.model.InputSource
+import com.scamshield.app.service.BaitingManager
+import com.scamshield.app.data.local.entity.OfflineAnalyticsEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -40,7 +45,8 @@ class MainViewModel @Inject constructor(
     private val baitingDao: BaitingDao,
     private val senderHistoryDao: SenderHistoryDao,
     private val scammerRepository: ScammerRepository,
-    private val keywordMatcher: KeywordMatcher
+    private val keywordMatcher: KeywordMatcher,
+    private val baitingManager: BaitingManager
 ) : AndroidViewModel(application) {
 
     companion object {
@@ -70,6 +76,15 @@ class MainViewModel @Inject constructor(
     val keywordCount: LiveData<Int> = _keywordCount
     private val _analyticsSummary = MutableLiveData<AnalyticsSummaryDto?>()
     val analyticsSummary: LiveData<AnalyticsSummaryDto?> = _analyticsSummary
+
+    val engineStatus: StateFlow<com.scamshield.app.service.EngineStatus> = baitingManager.engineStatus.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = com.scamshield.app.service.EngineStatus.ONLINE
+    )
+
+    private val _offlineAnalytics = MutableLiveData<List<OfflineAnalyticsEntity>>(emptyList())
+    val offlineAnalytics: LiveData<List<OfflineAnalyticsEntity>> = _offlineAnalytics
 
     /**
      * Analyze a message using the full detection pipeline.
@@ -117,6 +132,10 @@ class MainViewModel @Inject constructor(
                 val allBaiting = baitingDao.getAllSessions()
                 _baitingSessions.postValue(allBaiting)
                 _analyticsSummary.postValue(detectionRepository.fetchAnalyticsSummary())
+                
+                // Fetch offline analytics for the stats popup
+                val offlineData = baitingDao.getUnsyncedAnalytics()
+                _offlineAnalytics.postValue(offlineData)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to load history or baiting logs", e)
             }
@@ -155,6 +174,7 @@ class MainViewModel @Inject constructor(
             senderHistoryDao.deleteAll()
             baitingDao.deleteAllSessions()
             baitingDao.deleteAllMessages()
+            baitingManager.clearRuntimeState()
             
             _detectionHistory.postValue(emptyList())
             _baitingSessions.postValue(emptyList())

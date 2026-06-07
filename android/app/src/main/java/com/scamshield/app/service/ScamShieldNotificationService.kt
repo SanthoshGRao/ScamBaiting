@@ -174,9 +174,22 @@ class ScamShieldNotificationService : NotificationListenerService() {
         super.onListenerConnected()
         mainHandler.removeCallbacks(rebindRunnable)
         Log.i(TAG, "NotificationListener CONNECTED — monitoring active")
+        NotificationListenerReviver.markListenerActive(this, "connected")
         if (!isInjected) {
             Log.w(TAG, "Re-attempting dependency injection...")
             injectDependencies()
+        }
+        processActiveNotificationsAfterReconnect()
+    }
+
+    private fun processActiveNotificationsAfterReconnect() {
+        try {
+            activeNotifications?.forEach { sbn ->
+                val ageMs = System.currentTimeMillis() - sbn.postTime
+                if (ageMs in 0..120_000L) onNotificationPosted(sbn)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to inspect active notifications after reconnect", e)
         }
     }
 
@@ -202,11 +215,16 @@ class ScamShieldNotificationService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         try {
             if (sbn == null) return
+            NotificationListenerReviver.markListenerActive(this, "notification_posted")
             if (!isInjected || parser == null) {
                 Log.e(TAG, "Dependencies not injected, attempting re-injection...")
                 injectDependencies()
                 if (!isInjected) return
             }
+
+            val packageName = sbn.packageName ?: return
+            val notification = sbn.notification ?: return
+            val isSandbox = (notification.channelId == "scam_sandbox" || sbn.id == 999)
 
             // === REAL-TIME PROTECTION TOGGLE ===
             val prefs = applicationContext.getSharedPreferences("scamshield_prefs", 0)
@@ -214,22 +232,16 @@ class ScamShieldNotificationService : NotificationListenerService() {
                 "realtime_protection",
                 !prefs.getBoolean("privacy_mode", false)
             )
-            if (!realtimeEnabled) {
+            if (!isSandbox && !realtimeEnabled) {
                 Log.d(TAG, "Skipped: real-time protection disabled")
                 return // Real-time protection disabled by user
             }
-
-            val packageName = sbn.packageName ?: return
-            val notification = sbn.notification ?: return
             
             // Log ALL incoming notifications for diagnostics
             val extras = notification.extras
             val title = extras?.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString()
             val textPreview = extras?.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString()?.take(60)
             Log.i(TAG, ">>> NOTIFICATION ARRIVED: pkg=$packageName, title=$title, text=$textPreview, category=${notification.category}")
-
-            // Bypass filters for the internal Sandbox Demo notification
-            val isSandbox = (notification.channelId == "scam_sandbox" || sbn.id == 999)
 
             if (!isSandbox) {
                 // Don't process our own notifications
@@ -328,20 +340,28 @@ class ScamShieldNotificationService : NotificationListenerService() {
             var skipDetectionForBaiting = false
 
             if (isBaitingActive) {
-                Log.i(TAG, "Baiting session active for $senderKey. Forwarding to AI...")
-                val timeSinceLast = baiting.getTimeSinceLastUserMessage(senderKey)
-                baiting.handleIncomingMessage(senderKey, parsed.text)
-                
-                if (isDemoMode && timeSinceLast != null && timeSinceLast > 5 * 60 * 1000L) {
-                    Log.i(TAG, "Demo mode is ON and last message was > 5 mins ago. Running detection anyway.")
-                    // Do not set skipDetectionForBaiting, allow fall-through
+                if ((parsed.replyIntent != null && parsed.remoteInput != null) || baiting.canReplyToSender(senderKey)) {
+                    Log.i(TAG, "Baiting session active for $senderKey. Forwarding to AI...")
+                    val timeSinceLast = baiting.getTimeSinceLastUserMessage(senderKey)
+                    baiting.handleIncomingMessage(senderKey, parsed.text)
+
+                    if (isDemoMode && timeSinceLast != null && timeSinceLast > 5 * 60 * 1000L) {
+                        Log.i(TAG, "Demo mode is ON and last message was > 5 mins ago. Running detection anyway.")
+                        // Do not set skipDetectionForBaiting, allow fall-through
+                    } else {
+                        skipDetectionForBaiting = true
+                    }
                 } else {
-                    skipDetectionForBaiting = true
+                    Log.w(TAG, "Baiting session active for $senderKey but no reply action is available. Running detection instead.")
                 }
             } else if (knownScammer != null && knownScammer.aiEnabled) {
-                Log.i(TAG, "Message from known scammer $senderKey with AI enabled. Starting session.")
-                baiting.startBaitingSession(knownScammer.phoneNumber, parsed.text)
-                skipDetectionForBaiting = true
+                if ((parsed.replyIntent != null && parsed.remoteInput != null) || baiting.canReplyToSender(senderKey)) {
+                    Log.i(TAG, "Message from known scammer $senderKey with AI enabled. Starting session.")
+                    baiting.startBaitingSession(knownScammer.phoneNumber, parsed.text)
+                    skipDetectionForBaiting = true
+                } else {
+                    Log.w(TAG, "Known scammer $senderKey has AI enabled but no reply action is available. Running detection instead.")
+                }
             }
 
             if (skipDetectionForBaiting) {

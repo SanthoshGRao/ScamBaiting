@@ -19,14 +19,18 @@ import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AppCompatDelegate
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
 import com.scamshield.app.R
 import com.scamshield.app.databinding.FragmentSettingsBinding
+import com.scamshield.app.service.EngineStatus
 import com.scamshield.app.service.ScamShieldNotificationService
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 /**
  * SettingsFragment — Premium settings panel with organized sections:
@@ -69,6 +73,7 @@ class SettingsFragment : Fragment() {
         setupDetectionTuning()
         setupBaitingConfig()
         setupPrivacyData()
+        setupEngineStatus()
         setupAppearance()
         setupAbout()
 
@@ -181,7 +186,7 @@ class SettingsFragment : Fragment() {
         })
 
         // Confidence Threshold Slider
-        val savedThreshold = prefs.getInt("confidence_threshold", 60).toFloat()
+        val savedThreshold = prefs.getInt("confidence_threshold", 25).toFloat()
         binding.sliderThreshold.value = savedThreshold
         binding.tvThresholdValue.text = "${savedThreshold.toInt()}%"
 
@@ -344,7 +349,10 @@ class SettingsFragment : Fragment() {
 
         binding.switchDemoMode.isChecked = prefs.getBoolean("demo_mode", false)
         binding.switchDemoMode.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean("demo_mode", checked).apply()
+            prefs.edit()
+                .putBoolean("demo_mode", checked)
+                .remove("demo_mode_enabled")
+                .apply()
             hapticFeedback()
             Toast.makeText(
                 requireContext(),
@@ -402,6 +410,69 @@ class SettingsFragment : Fragment() {
             hapticFeedback()
             exportBaitingLogs()
         }
+    }
+
+    // ═══════════════════════════════════════
+    // ENGINE STATUS SECTION
+    // ═══════════════════════════════════════
+    private fun setupEngineStatus() {
+        lifecycleScope.launch {
+            viewModel.engineStatus.collectLatest { status ->
+                val badgeText = when (status) {
+                    EngineStatus.ONLINE -> "🟢 Online"
+                    EngineStatus.OFFLINE_ACTIVE -> "🟠 Offline"
+                    EngineStatus.RECONNECTING -> "🔄 Reconnecting"
+                    EngineStatus.DEMO_MODE -> "🧪 Demo Mode"
+                }
+                
+                val badgeColor = when (status) {
+                    EngineStatus.ONLINE -> R.color.risk_safe
+                    EngineStatus.OFFLINE_ACTIVE -> R.color.risk_medium
+                    EngineStatus.RECONNECTING -> R.color.accent
+                    EngineStatus.DEMO_MODE -> R.color.risk_medium
+                }
+                
+                binding.tvEngineBadge.text = badgeText
+                binding.tvEngineBadge.setTextColor(ContextCompat.getColor(requireContext(), badgeColor))
+            }
+        }
+
+        binding.btnRuntimeStats.setOnClickListener {
+            hapticFeedback()
+            showRuntimeStatsDialog()
+        }
+    }
+
+    private fun showRuntimeStatsDialog() {
+        viewModel.offlineAnalytics.observe(viewLifecycleOwner) { analytics ->
+            if (analytics.isNullOrEmpty()) {
+                Toast.makeText(requireContext(), "No offline analytics available", Toast.LENGTH_SHORT).show()
+                return@observe
+            }
+            
+            val sb = StringBuilder()
+            sb.append("Total Offline Replies Generated: ${analytics.size}\n\n")
+            
+            val groupedByIntent = analytics.groupBy { it.detectedIntent }
+            sb.append("--- Intents ---\n")
+            groupedByIntent.forEach { (intent, list) ->
+                sb.append("$intent: ${list.size}\n")
+            }
+            
+            sb.append("\n--- Sample Log ---\n")
+            val sample = analytics.last()
+            sb.append("Last Intent: ${sample.detectedIntent}\n")
+            sb.append("Last Persona: ${sample.selectedPersona}\n")
+            sb.append("Last State: ${sample.selectedState}\n")
+            sb.append("Reply: ${sample.selectedReply}\n")
+            
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Runtime Statistics")
+                .setMessage(sb.toString())
+                .setPositiveButton("Close") { dialog, _ -> dialog.dismiss() }
+                .show()
+        }
+        viewModel.loadAnalytics() // Fetch latest
     }
 
     // ═══════════════════════════════════════

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.scamshield.app.R
 import java.security.MessageDigest
 import com.scamshield.app.detection.DetectionResult
@@ -133,6 +134,8 @@ class AlertNotificationManager @Inject constructor(
 
         val riskTier = getRiskTier(result.bestConfidence)
         val channelId = getChannelForRisk(riskTier)
+        if (!canPostNotifications(channelId)) return
+
         val nId = nextNotificationId()
 
         val actionSenderId = senderIdForActions?.takeIf { it.isNotBlank() }
@@ -251,8 +254,8 @@ class AlertNotificationManager @Inject constructor(
         notificationId: Int,
         extras: Map<String, String>
     ): PendingIntent {
-        val intent = Intent(action).apply {
-            setPackage(context.packageName)
+        val intent = Intent(context, ScamActionReceiver::class.java).apply {
+            this.action = action
             extras.forEach { (key, value) -> putExtra(key, value) }
             putExtra("notification_id", notificationId)
         }
@@ -300,6 +303,21 @@ class AlertNotificationManager @Inject constructor(
 
         channels.forEach { notificationManager.createNotificationChannel(it) }
         Log.d(TAG, "Notification channels created: ${channels.size}")
+    }
+
+    private fun canPostNotifications(channelId: String): Boolean {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            Log.e(TAG, "Cannot show scam alert — app notifications are disabled or POST_NOTIFICATIONS is denied")
+            return false
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = notificationManager.getNotificationChannel(channelId)
+            if (channel?.importance == NotificationManager.IMPORTANCE_NONE) {
+                Log.e(TAG, "Cannot show scam alert — notification channel $channelId is disabled")
+                return false
+            }
+        }
+        return true
     }
 
     // --- Helpers ---

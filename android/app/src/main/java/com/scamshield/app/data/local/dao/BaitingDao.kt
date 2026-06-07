@@ -57,4 +57,18 @@ abstract class BaitingDao {
 
     @Query("DELETE FROM baiting_messages")
     abstract suspend fun deleteAllMessages()
+
+    // --- Offline Analytics ---
+    
+    @Insert
+    abstract suspend fun insertOfflineAnalytics(analytics: com.scamshield.app.data.local.entity.OfflineAnalyticsEntity)
+
+    @Query("SELECT * FROM offline_analytics WHERE isSynced = 0 ORDER BY timestamp ASC")
+    abstract suspend fun getUnsyncedAnalytics(): List<com.scamshield.app.data.local.entity.OfflineAnalyticsEntity>
+
+    @Query("UPDATE offline_analytics SET isSynced = 1 WHERE id IN (:ids)")
+    abstract suspend fun markAnalyticsSynced(ids: List<Int>)
+
+    @Query("UPDATE baiting_sessions SET conversationState = :state WHERE senderId = :senderId")
+    abstract suspend fun updateConversationState(senderId: String, state: String)
 }

@@ -60,6 +60,7 @@ class ScamShieldAccessibilityService : AccessibilityService() {
     private val recentHashes = ConcurrentHashMap<String, Long>()
     // Per-app cooldown
     private val lastProcessTime = ConcurrentHashMap<String, Long>()
+    private var appliedDetectionRuntimeGeneration: Long = -1L
 
     // Media type indicators found in accessibility node descriptions
     private val MEDIA_INDICATORS = mapOf(
@@ -122,6 +123,8 @@ class ScamShieldAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || !isInjected) return
+
+        applyDetectionRuntimeGenerationResetIfNeeded()
 
         val packageName = event.packageName?.toString() ?: return
 
@@ -398,6 +401,17 @@ class ScamShieldAccessibilityService : AccessibilityService() {
         }
         recentHashes[hash] = now
         return false
+    }
+
+    private fun applyDetectionRuntimeGenerationResetIfNeeded() {
+        val prefs = applicationContext.getSharedPreferences("scamshield_prefs", MODE_PRIVATE)
+        val gen = prefs.getLong("detection_runtime_generation", 0L)
+        if (gen != appliedDetectionRuntimeGeneration) {
+            recentHashes.clear()
+            lastProcessTime.clear()
+            appliedDetectionRuntimeGeneration = gen
+            Log.i(TAG, "Accessibility runtime dedup/cooldown cleared (generation=$gen)")
+        }
     }
 
     override fun onInterrupt() {

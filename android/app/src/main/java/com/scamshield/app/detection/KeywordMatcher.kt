@@ -125,8 +125,9 @@ class KeywordMatcher @Inject constructor(
     suspend fun matchKeywords(text: String): List<MatchedRule> =
         withContext(Dispatchers.Default) {
             val dbKeywords = getKeywordsFromCache()
-            // Merge DB keywords with fallback — use DB if available, else fallback
-            val keywords = if (dbKeywords.isNotEmpty()) dbKeywords else FALLBACK_KEYWORDS
+            // Fallback keywords must always remain active for offline/demo reliability.
+            val keywords = (dbKeywords + FALLBACK_KEYWORDS)
+                .distinctBy { "${it.keyword.lowercase()}|${it.categoryId}|${it.isRegex}" }
 
             val lowerText = text.lowercase()
             val matches = mutableListOf<MatchedRule>()

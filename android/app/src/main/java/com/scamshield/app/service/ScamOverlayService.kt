@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.Gravity
@@ -48,15 +49,21 @@ class ScamOverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Required when started via ContextCompat.startForegroundService (e.g. from NLS / background).
-        startAsForegroundService()
-
-        val title = intent?.getStringExtra("EXTRA_TITLE") ?: "Scam Detected"
-        val message = intent?.getStringExtra("EXTRA_MESSAGE") ?: "Suspicious activity detected."
-        val isHighRisk = intent?.getBooleanExtra("EXTRA_HIGH_RISK", true) ?: true
-        val sender = intent?.getStringExtra("EXTRA_SENDER") ?: "Unknown"
-
         try {
+            // Required when started via ContextCompat.startForegroundService (e.g. from NLS / background).
+            startAsForegroundService()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Log.w(TAG, "Overlay permission not granted; skipping floating alert")
+                stopForegroundAndSelf()
+                return START_NOT_STICKY
+            }
+
+            val title = intent?.getStringExtra("EXTRA_TITLE") ?: "Scam Detected"
+            val message = intent?.getStringExtra("EXTRA_MESSAGE") ?: "Suspicious activity detected."
+            val isHighRisk = intent?.getBooleanExtra("EXTRA_HIGH_RISK", true) ?: true
+            val sender = intent?.getStringExtra("EXTRA_SENDER") ?: "Unknown"
+
             showOverlay(title, message, isHighRisk, sender)
         } catch (e: SecurityException) {
             Log.e(TAG, "Overlay permission missing or addView denied", e)
@@ -65,7 +72,7 @@ class ScamOverlayService : Service() {
             Log.e(TAG, "Invalid window token for overlay", e)
             stopForegroundAndSelf()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to show overlay", e)
+            Log.e(TAG, "Failed to start/show overlay", e)
             stopForegroundAndSelf()
         }
 
@@ -75,7 +82,7 @@ class ScamOverlayService : Service() {
     private fun startAsForegroundService() {
         val notification = buildForegroundNotification()
         val type = if (Build.VERSION.SDK_INT >= 34) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         } else {
             0
         }

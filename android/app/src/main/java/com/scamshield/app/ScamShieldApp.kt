@@ -12,6 +12,7 @@ import com.scamshield.app.detection.DetectionRepository
 import com.scamshield.app.data.local.entity.ScamCategoryEntity
 import com.scamshield.app.data.local.entity.ScamKeywordEntity
 import com.scamshield.app.service.NotificationListenerReviver
+import com.scamshield.app.service.ProtectionKeepAliveService
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +63,7 @@ class ScamShieldApp : Application() {
 
         // After force-stop / clear cache, the NLS often stays unbound until rebind — do not require reinstall.
         NotificationListenerReviver.pingColdStart(this)
+        ProtectionKeepAliveService.start(this)
 
         appScope.launch {
             val ok = try {

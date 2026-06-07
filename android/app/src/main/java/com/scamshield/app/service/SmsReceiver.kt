@@ -3,6 +3,7 @@ package com.scamshield.app.service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.provider.Telephony
 import android.util.Log
 import com.scamshield.app.data.ScammerRepository
@@ -36,6 +37,10 @@ class SmsReceiver : BroadcastReceiver() {
         private const val DEDUP_WINDOW_MS = 5 * 60 * 1000L
         private const val MAX_DEDUP = 200
         private const val ALERT_COOLDOWN_MS = 120_000L
+
+        private val recentHashes = ConcurrentHashMap<String, Long>()
+        private val lastAlertBySender = ConcurrentHashMap<String, Long>()
+        private var appliedDetectionRuntimeGeneration: Long = -1L
     }
 
     @Inject lateinit var detectionRepository: DetectionRepository
@@ -45,14 +50,11 @@ class SmsReceiver : BroadcastReceiver() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // Static dedup maps (survive across broadcasts within the process)
-    private val recentHashes = ConcurrentHashMap<String, Long>()
-    private val lastAlertBySender = ConcurrentHashMap<String, Long>()
-
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
 
         val prefs = context.getSharedPreferences("scamshield_prefs", 0)
+        applyDetectionRuntimeGenerationResetIfNeeded(prefs)
         if (!prefs.getBoolean("realtime_protection", true)) return
 
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
@@ -90,6 +92,7 @@ class SmsReceiver : BroadcastReceiver() {
         val soundEnabled = prefs.getBoolean("sound_alerts", true)
         val vibrateEnabled = prefs.getBoolean("vibration_alerts", true)
         val confidenceThreshold = prefs.getInt("confidence_threshold", 25) / 100f
+        val autoBait = prefs.getBoolean("auto_bait", false)
 
         // Dedup
         val hash = hashContent(senderKey, body)
@@ -101,17 +104,25 @@ class SmsReceiver : BroadcastReceiver() {
 
         // Check if active baiting session — forward to AI
         if (baitingManager.isBaitingActive(senderKey)) {
-            Log.i(TAG, "Active baiting session for $senderKey — forwarding SMS to AI")
-            baitingManager.handleIncomingMessage(senderKey, body)
-            return
+            if (baitingManager.canReplyToSender(senderKey)) {
+                Log.i(TAG, "Active baiting session for $senderKey — forwarding SMS to AI")
+                baitingManager.handleIncomingMessage(senderKey, body)
+                return
+            } else {
+                Log.w(TAG, "Active baiting session for $senderKey has no reply action — running SMS detection")
+            }
         }
 
         // Check known scammer with AI enabled
         val knownScammer = scammerRepository.getScammer(senderKey)
         if (knownScammer?.aiEnabled == true) {
-            Log.i(TAG, "Known scammer with AI enabled: $senderKey — starting baiting")
-            baitingManager.startBaitingSession(senderKey, body)
-            return
+            if (baitingManager.canReplyToSender(senderKey)) {
+                Log.i(TAG, "Known scammer with AI enabled: $senderKey — starting baiting")
+                baitingManager.startBaitingSession(senderKey, body)
+                return
+            } else {
+                Log.w(TAG, "Known scammer $senderKey has AI enabled but no reply action — running SMS detection")
+            }
         }
 
         // Run quick analysis
@@ -137,6 +148,11 @@ class SmsReceiver : BroadcastReceiver() {
                     scammerRepository.upsertHighRisk(senderKey, body)
                     alertShown = true
                     Log.i(TAG, "SMS ALERT for $senderKey: conf=%.2f".format(quickResult.confidence))
+                    if (autoBait && baitingManager.canReplyToSender(senderKey)) {
+                        Log.i(TAG, "SMS auto-bait enabled. Starting baiting for $senderKey")
+                        baitingManager.startBaitingSession(senderKey, body)
+                        return
+                    }
                 }
             }
         }
@@ -162,6 +178,10 @@ class SmsReceiver : BroadcastReceiver() {
                 markSenderAlert(senderKey)
                 scammerRepository.upsertHighRisk(senderKey, body)
                 Log.i(TAG, "SMS FULL ALERT for $senderKey: conf=%.2f".format(fullResult.bestConfidence))
+                if (autoBait && baitingManager.canReplyToSender(senderKey)) {
+                    Log.i(TAG, "SMS auto-bait from full analysis. Starting baiting for $senderKey")
+                    baitingManager.startBaitingSession(senderKey, body)
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Full SMS analysis failed: ${e.message}")
@@ -205,6 +225,16 @@ class SmsReceiver : BroadcastReceiver() {
         if (lastAlertBySender.size > MAX_DEDUP) {
             val cutoff = System.currentTimeMillis() - ALERT_COOLDOWN_MS
             lastAlertBySender.entries.filter { it.value < cutoff }.forEach { lastAlertBySender.remove(it.key) }
+        }
+    }
+
+    private fun applyDetectionRuntimeGenerationResetIfNeeded(prefs: SharedPreferences) {
+        val gen = prefs.getLong("detection_runtime_generation", 0L)
+        if (gen != appliedDetectionRuntimeGeneration) {
+            recentHashes.clear()
+            lastAlertBySender.clear()
+            appliedDetectionRuntimeGeneration = gen
+            Log.i(TAG, "SMS runtime dedup/cooldown cleared (generation=$gen)")
         }
     }
 }

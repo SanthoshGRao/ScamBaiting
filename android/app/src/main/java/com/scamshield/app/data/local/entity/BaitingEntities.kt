@@ -15,6 +15,8 @@ data class BaitingSessionEntity(
     val totalMessages: Int = 0,
     /** Last strategy from backend (CONFUSION, DELAY, …); drives the next /bait/reply request. */
     val currentStrategy: String = "CONFUSION",
+    // New v2 columns
+    val conversationState: String = "INITIAL"
 )
 
 @Entity(
@@ -36,4 +38,17 @@ data class BaitingMessageEntity(
     val role: String, // "user" (scammer) or "assistant" (AI)
     val content: String,
     val timestamp: Long
+)
+
+@Entity(tableName = "offline_analytics")
+data class OfflineAnalyticsEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val sessionId: String,
+    val timestamp: Long,
+    val detectedIntent: String,
+    val confidenceScore: Int,
+    val selectedState: String,
+    val selectedPersona: String,
+    val selectedReply: String,
+    val isSynced: Boolean = false
 )

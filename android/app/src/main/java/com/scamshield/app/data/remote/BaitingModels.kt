@@ -12,7 +12,36 @@ data class BaitingRequestDto(
     val current_strategy: String = "CONFUSION",
     val scam_category: String = "unknown",
     val goal: String = "waste_time",
-    val history: List<ChatMessageDto>
+    val mission: String = "WASTE_MAXIMUM_TIME",
+    val scammer_dna: ScammerDnaDto? = null,
+    val known_intelligence: List<KnownIntelligenceDto> = emptyList(),
+    val history: List<ChatMessageDto>,
+    val offline_analytics: List<OfflineAnalyticsSyncDto> = emptyList()
+)
+
+data class ScammerDnaDto(
+    val urgency: Int,
+    val aggression: Int,
+    val persistence: Int,
+    val technicalLevel: Int,
+    val trustBuilding: Int,
+    val repetition: Int,
+    val avgMessageLength: Float,
+    val avgResponseLatencyMs: Float,
+    val scamCategory: String
+)
+
+data class KnownIntelligenceDto(
+    val type: String,
+    val value: String,
+    val confidence: Float
+)
+
+data class OfflineAnalyticsSyncDto(
+    val detected_intent: String,
+    val selected_persona: String,
+    val selected_state: String,
+    val timestamp: Long
 )
 
 data class BaitingResponseDto(

@@ -63,6 +63,12 @@ async def generate_reply(
     rate_limiter.check(f"user:{_.id}:bait")
     agent = get_baiting_agent()
     
+    if request.offline_analytics:
+        logger.info(
+            "Received %d offline analytics events for session=%s",
+            len(request.offline_analytics), request.session_id,
+        )
+    
     try:
         history_dicts = [{"role": m.role, "content": m.content} for m in request.history]
         selection = await _strategy_selector.select_strategy(

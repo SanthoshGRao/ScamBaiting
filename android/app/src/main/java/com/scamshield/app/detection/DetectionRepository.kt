@@ -30,6 +30,7 @@ import kotlinx.coroutines.delay
 @Singleton
 class DetectionRepository @Inject constructor(
     private val ruleEngine: RuleEngine,
+    private val edgeAiClassifier: EdgeAiClassifier,
     private val apiService: DetectionApiService,
     private val cacheDao: DetectionCacheDao
 ) {
@@ -81,7 +82,7 @@ class DetectionRepository @Inject constructor(
         }
 
         // Step 2: Run local rule engine
-        val ruleVerdict = ruleEngine.analyze(text, sender)
+        var ruleVerdict = ruleEngine.analyze(text, sender)
 
         // Step 3: Send to backend (if online + not privacy mode)
         var serverVerdict: DetectionVerdictDto? = null
@@ -91,12 +92,26 @@ class DetectionRepository @Inject constructor(
             try {
                 serverVerdict = sendToBackend(text, source, sender, ruleVerdict, mediaType, mediaFilename)
             } catch (e: Exception) {
-                Log.w(TAG, "Backend unavailable, using rule-only: ${e.message}")
+                Log.w(TAG, "Backend unavailable, falling back to Edge AI: ${e.message}")
                 isOffline = true
+            }
+        } else {
+            isOffline = true
+        }
+
+        // Step 4: Edge AI Fallback (if offline)
+        if (isOffline) {
+            val edgeScore = edgeAiClassifier.classify(text)
+            if (edgeScore != null && edgeScore > ruleVerdict.confidence) {
+                Log.i(TAG, "Edge AI fallback boosted confidence: ${ruleVerdict.confidence} -> $edgeScore")
+                ruleVerdict = ruleVerdict.copy(
+                    confidence = edgeScore,
+                    isSuspicious = edgeScore >= 0.30f
+                )
             }
         }
 
-        // Step 4: Cache the result
+        // Step 5: Cache the result
         cacheResult(messageHash, ruleVerdict)
 
         val elapsed = elapsedMs(startTime)
@@ -156,7 +171,7 @@ class DetectionRepository @Inject constructor(
         )
 
         try {
-            var token = ensureToken() ?: return@withContext null
+            var token = ensureToken() ?: throw java.io.IOException("Authentication failed or offline")
             var attempt = 0
             while (attempt < MAX_RETRIES) {
                 val response = apiService.detectScamFull("Bearer $token", request)
@@ -167,7 +182,7 @@ class DetectionRepository @Inject constructor(
                     Log.w(TAG, "Detection API 401, refreshing token and retrying")
                     bearerToken = null
                     refreshToken = null
-                    token = ensureToken() ?: return@withContext null
+                    token = ensureToken() ?: throw java.io.IOException("Authentication failed on retry")
                     attempt++
                     continue
                 }
@@ -180,7 +195,7 @@ class DetectionRepository @Inject constructor(
                 delay((attempt * 300).toLong())
             }
             Log.w(TAG, "Backend detection failed after retries")
-            null
+            throw java.io.IOException("Backend detection failed after retries")
         } catch (e: Exception) {
             Log.e(TAG, "API call failed", e)
             throw e // Propagate for offline detection

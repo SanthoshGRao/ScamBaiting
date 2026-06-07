@@ -40,6 +40,7 @@ class DashboardFragment : Fragment() {
 
     private var pulseAnimator: ObjectAnimator? = null
     private var lastAnalyzedText: String? = null
+    private val sandboxMessage = "URGENT: Your account was suspended for unusual activity. Click here for a KYC update and to verify your PAN card: http://sbi-kyc-verify.com"
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -419,12 +420,14 @@ class DashboardFragment : Fragment() {
         val notification = androidx.core.app.NotificationCompat.Builder(ctx, "scam_sandbox")
             .setSmallIcon(R.drawable.ic_shield)
             .setContentTitle("SBI Bank Alert")
-            .setContentText("URGENT: Your account was suspended for unusual activity. Click here for a KYC update and to verify your PAN card: http://sbi-kyc-verify.com")
+            .setContentText(sandboxMessage)
             .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
             .build()
-            
+             
         notificationManager.notify(999, notification)
-        Toast.makeText(ctx, "Sandbox: Injected Live Mock Scenario", Toast.LENGTH_SHORT).show()
+        lastAnalyzedText = sandboxMessage
+        viewModel.analyzeMessage(sandboxMessage, demoMode = true)
+        Toast.makeText(ctx, "Sandbox: Offline demo detection started", Toast.LENGTH_SHORT).show()
     }
 
     private fun hapticFeedback() {

@@ -11,6 +11,7 @@
     <!-- SMS access for precise incoming message detection -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
 
     <!-- Notification access (granted via system settings) -->
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
@@ -21,12 +22,18 @@
 
     <!-- Foreground service (if needed for long API calls) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Optional floating warning overlay. App must still be granted this in Settings. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Receive boot complete to re-enable service -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Wake lock for processing during doze (WorkManager) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- ==================== APPLICATION ==================== -->
 
@@ -75,6 +82,20 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+        </service>
+
+        <service
+            android:name=".service.ProtectionKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".service.ScamOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="temporary scam warning overlay" />
         </service>
 
 
