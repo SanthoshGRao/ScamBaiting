@@ -301,16 +301,8 @@ class BaitingAgent:
         return cleaned if cleaned else ["hmm wait"]
 
     def _compute_part_delays(self, num_parts: int, incoming_len: int) -> list[int]:
-        """Seconds of 'human pause' before each bubble."""
-        delays: list[int] = []
-        for i in range(num_parts):
-            if i == 0:
-                read_bonus = min(4, incoming_len // 80)
-                sec = random.randint(3, 6) + read_bonus
-                delays.append(max(2, min(12, sec)))
-            else:
-                delays.append(random.randint(1, 3))
-        return delays
+        # For testing purposes, make all cloud replies instant
+        return [0] * num_parts
 
     async def generate_reply(
         self, request: BaitingRequest, tracking_url: str | None = None,
