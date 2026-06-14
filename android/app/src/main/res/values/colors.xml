@@ -1,101 +1,100 @@
 <resources>
-    <!-- Midnight Security — Light Theme -->
-    <color name="primary">#FF2563EB</color>
-    <color name="primary_dark">#FF1D4ED8</color>
-    <color name="primary_light">#FF3B82F6</color>
-    <color name="primary_30">#4D2563EB</color>
-    <color name="primary_10">#1A2563EB</color>
-    <color name="accent">#FF0891B2</color>
-    <color name="accent_dark">#FF0E7490</color>
-    <color name="accent_light">#FF06B6D4</color>
+    <!-- Midnight Security — Dark Theme (Flagship) -->
+    <color name="primary">#FF3B82F6</color>
+    <color name="primary_dark">#FF2563EB</color>
+    <color name="primary_light">#FF60A5FA</color>
+    <color name="primary_30">#4D3B82F6</color>
+    <color name="primary_10">#1A3B82F6</color>
+    <color name="accent">#FF06B6D4</color>
+    <color name="accent_dark">#FF0891B2</color>
+    <color name="accent_light">#FF22D3EE</color>
 
-    <color name="gradient_start">#FF2563EB</color>
-    <color name="gradient_mid">#FF0891B2</color>
-    <color name="gradient_end">#FF06B6D4</color>
-    <color name="gradient_hero_start">#FF1E40AF</color>
-    <color name="gradient_hero_end">#FF1D4ED8</color>
+    <color name="gradient_start">#FF3B82F6</color>
+    <color name="gradient_mid">#FF06B6D4</color>
+    <color name="gradient_end">#FF0891B2</color>
+    <color name="gradient_hero_start">#FF1E293B</color>
+    <color name="gradient_hero_end">#FF243447</color>
 
-    <color name="bg_main">#FFF8FAFC</color>
-    <color name="surface_bg">#FFFFFFFF</color>
-    <color name="card_bg">#FFFFFFFF</color>
-    <color name="card_elevated">#FFFFFFFF</color>
-    <color name="card_highlight">#FFF1F5F9</color>
-    <color name="card_stroke">#FFE2E8F0</color>
-    <color name="glass_surface">#CCFFFFFF</color>
+    <color name="bg_main">#FF0F172A</color>
+    <color name="surface_bg">#FF1E293B</color>
+    <color name="card_bg">#FF1E293B</color>
+    <color name="card_elevated">#FF243447</color>
+    <color name="card_highlight">#FF243447</color>
+    <color name="card_stroke">#FF334155</color>
+    <color name="glass_surface">#CC1E293B</color>
 
-    <color name="text_primary">#FF0F172A</color>
-    <color name="text_secondary">#FF64748B</color>
-    <color name="text_hint">#FF94A3B8</color>
-    <color name="text_disabled">#400F172A</color>
+    <color name="text_primary">#FFF8FAFC</color>
+    <color name="text_secondary">#FF94A3B8</color>
+    <color name="text_hint">#FF64748B</color>
+    <color name="text_disabled">#33F8FAFC</color>
 
-    <color name="risk_high">#FFDC2626</color>
-    <color name="risk_high_bg">#14DC2626</color>
-    <color name="risk_medium">#FFD97706</color>
-    <color name="risk_medium_bg">#14D97706</color>
-    <color name="risk_low">#FF2563EB</color>
-    <color name="risk_low_bg">#142563EB</color>
-    <color name="risk_safe">#FF16A34A</color>
-    <color name="risk_safe_bg">#1416A34A</color>
+    <color name="risk_high">#FFEF4444</color>
+    <color name="risk_high_bg">#1AEF4444</color>
+    <color name="risk_medium">#FFF59E0B</color>
+    <color name="risk_medium_bg">#1AF59E0B</color>
+    <color name="risk_low">#FF3B82F6</color>
+    <color name="risk_low_bg">#1A3B82F6</color>
+    <color name="risk_safe">#FF22C55E</color>
+    <color name="risk_safe_bg">#1A22C55E</color>
 
-    <color name="status_active">#FF16A34A</color>
+    <color name="status_active">#FF22C55E</color>
     <color name="status_inactive">#FF64748B</color>
 
-    <color name="divider">#FFE2E8F0</color>
-    <color name="overlay_bg">#660F172A</color>
-    <color name="shimmer">#140F172A</color>
+    <color name="divider">#FF334155</color>
+    <color name="overlay_bg">#CC0F172A</color>
+    <color name="shimmer">#1AF8FAFC</color>
 
-    <color name="slider_track">#331F2937</color>
-    <color name="slider_thumb">#FF2563EB</color>
-    <color name="switch_track_on">#FF2563EB</color>
-    <color name="switch_track_off">#331F2937</color>
-    <color name="chip_bg">#FFF1F5F9</color>
-    <color name="chip_selected_bg">#FF2563EB</color>
+    <color name="slider_track">#33F8FAFC</color>
+    <color name="slider_thumb">#FF3B82F6</color>
+    <color name="switch_track_on">#FF3B82F6</color>
+    <color name="switch_track_off">#33F8FAFC</color>
+    <color name="chip_bg">#FF243447</color>
+    <color name="chip_selected_bg">#FF3B82F6</color>
 
-    <color name="persona_uncle">#FFD97706</color>
-    <color name="persona_slow">#FF16A34A</color>
-    <color name="persona_victim">#FFDC2626</color>
-    <color name="persona_analyst">#FF2563EB</color>
-    <color name="persona_troll">#FF0891B2</color>
+    <color name="persona_uncle">#FFF59E0B</color>
+    <color name="persona_slow">#FF22C55E</color>
+    <color name="persona_victim">#FFEF4444</color>
+    <color name="persona_analyst">#FF3B82F6</color>
+    <color name="persona_troll">#FF06B6D4</color>
 
-    <color name="badge_bg">#FFDC2626</color>
+    <color name="badge_bg">#FFEF4444</color>
     <color name="badge_text">#FFFFFFFF</color>
 
-    <color name="nav_bg">#FFFFFFFF</color>
-    <color name="nav_pill_bg">#FFFFFFFF</color>
-    <color name="nav_active">#FF2563EB</color>
+    <color name="nav_bg">#FF1E293B</color>
+    <color name="nav_pill_bg">#FF243447</color>
+    <color name="nav_active">#FF3B82F6</color>
     <color name="nav_inactive">#FF64748B</color>
-    <color name="nav_divider">#FFE2E8F0</color>
-    <color name="nav_indicator">#FF2563EB</color>
+    <color name="nav_divider">#FF334155</color>
+    <color name="nav_indicator">#FF3B82F6</color>
 
-    <color name="bubble_scammer">#FFF1F5F9</color>
-    <color name="bubble_ai">#FFEFF6FF</color>
-    <color name="bubble_system">#FFFFFFFF</color>
-    <color name="chat_label_scammer">#FFDC2626</color>
-    <color name="chat_label_ai">#FF0891B2</color>
-    <color name="chat_on_bubble">#FF0F172A</color>
+    <color name="bubble_scammer">#FF2D1F2A</color>
+    <color name="bubble_ai">#FF1A2A3A</color>
+    <color name="bubble_system">#FF1E293B</color>
+    <color name="chat_label_scammer">#FFEF4444</color>
+    <color name="chat_label_ai">#FF06B6D4</color>
+    <color name="chat_on_bubble">#FFF8FAFC</color>
     <color name="chat_meta">#FF64748B</color>
     <color name="hero_text_primary">#FFF8FAFC</color>
-    <color name="hero_text_secondary">#CCF8FAFC</color>
+    <color name="hero_text_secondary">#B394A3B8</color>
 
-    <color name="ring_outer">#332563EB</color>
-    <color name="ring_middle">#4D2563EB</color>
-    <color name="ring_active">#FF2563EB</color>
-    <color name="ring_inactive">#FFCBD5E1</color>
-    <color name="ring_threat">#FFDC2626</color>
-    <color name="ring_glow">#402563EB</color>
+    <color name="ring_outer">#333B82F6</color>
+    <color name="ring_middle">#4D3B82F6</color>
+    <color name="ring_active">#FF3B82F6</color>
+    <color name="ring_inactive">#FF475569</color>
+    <color name="ring_threat">#FFEF4444</color>
+    <color name="ring_glow">#403B82F6</color>
 
-    <color name="overlay_card_bg">#FFFFFFFF</color>
-    <color name="overlay_border_high">#FFDC2626</color>
-    <color name="overlay_border_medium">#FFD97706</color>
+    <color name="overlay_card_bg">#E61E293B</color>
+    <color name="overlay_border_high">#FFEF4444</color>
+    <color name="overlay_border_medium">#FFF59E0B</color>
 
-    <color name="chart_axis_line">#FF64748B</color>
-    <color name="chart_grid">#1A64748B</color>
-    <color name="chart_phishing">#FF2563EB</color>
-    <color name="chart_otp">#FFDC2626</color>
-    <color name="chart_financial">#FFD97706</color>
-    <color name="chart_other">#FF16A34A</color>
+    <color name="chart_axis_line">#FF94A3B8</color>
+    <color name="chart_grid">#2894A3B8</color>
+    <color name="chart_phishing">#FF3B82F6</color>
+    <color name="chart_otp">#FFEF4444</color>
+    <color name="chart_financial">#FFF59E0B</color>
+    <color name="chart_other">#FF22C55E</color>
 
-    <color name="ic_launcher_background">#FF0F172A</color>
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
     <color name="transparent">#00000000</color>
