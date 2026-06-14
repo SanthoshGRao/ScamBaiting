@@ -78,6 +78,12 @@ class SecurityMonitorView @JvmOverloads constructor(
         ))
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val size = MeasureSpec.getSize(widthMeasureSpec)
+        val squareMeasureSpec = MeasureSpec.makeMeasureSpec(size, MeasureSpec.EXACTLY)
+        super.onMeasure(squareMeasureSpec, squareMeasureSpec)
+    }
+
     override fun dispatchDraw(canvas: android.graphics.Canvas) {
         super.dispatchDraw(canvas)
         if (currentState == State.INACTIVE) return
