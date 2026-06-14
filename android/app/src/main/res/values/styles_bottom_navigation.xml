@@ -16,7 +16,7 @@
         <item name="labelVisibilityMode">selected</item>
     </style>
     
-    <style name="ScamShield.BottomNav.ActiveIndicator">
+    <style name="ScamShield.BottomNav.ActiveIndicator" parent="">
         <item name="android:color">@color/nav_pill_bg</item>
     </style>
 
