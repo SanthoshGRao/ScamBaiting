@@ -139,6 +139,27 @@ class DashboardFragment : Fragment() {
         binding.btnOpenMessageView.setOnClickListener {
             startActivity(Intent(requireContext(), MessageInsightsActivity::class.java))
         }
+
+        // Add subtle continuous shimmer/pulse effect to the Analyze button
+        ObjectAnimator.ofPropertyValuesHolder(
+            binding.btnAnalyze,
+            PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 0.85f, 1f),
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.02f, 1f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.02f, 1f)
+        ).apply {
+            duration = 2000
+            repeatCount = ValueAnimator.INFINITE
+            start()
+        }
+
+        // Add glow focus to the text input
+        binding.etTestMessage.setOnFocusChangeListener { _, hasFocus ->
+            binding.etTestMessage.animate()
+                .scaleX(if (hasFocus) 1.01f else 1f)
+                .scaleY(if (hasFocus) 1.01f else 1f)
+                .setDuration(200)
+                .start()
+        }
     }
 
     private fun observeViewModel() {
@@ -152,10 +173,16 @@ class DashboardFragment : Fragment() {
             lastThreatCount = threats
             updateThreatCardStyle(threats)
             updateLastScan(items.maxOfOrNull { it.timestamp } ?: 0L)
+
+            // Animate progress bars
+            ObjectAnimator.ofInt(binding.pbStatScanned, "progress", 0, 100).setDuration(1500).start()
+            val threatProgress = if (scanned > 0) (threats.toFloat() / scanned * 100).toInt().coerceAtLeast(10) else 100
+            ObjectAnimator.ofInt(binding.pbStatThreats, "progress", 0, threatProgress).setDuration(1500).start()
+
             binding.tvEmptyState.text = if (items.isEmpty()) {
-                getString(R.string.no_scans_yet)
+                "You're protected.\nNo threats detected yet."
             } else {
-                "${items.size} messages analyzed. Open message view for details."
+                "${items.size} messages analyzed.\nOpen message view for details."
             }
         }
 
@@ -163,6 +190,7 @@ class DashboardFragment : Fragment() {
             val count = sessions.orEmpty().size
             animateCounter(binding.tvBaitedCount, lastBaitedCount, count)
             lastBaitedCount = count
+            ObjectAnimator.ofInt(binding.pbStatBaited, "progress", 0, 100).setDuration(1500).start()
         }
 
         viewModel.analysisResult.observe(viewLifecycleOwner) { result ->

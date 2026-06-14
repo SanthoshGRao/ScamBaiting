@@ -2,7 +2,7 @@
 <resources>
     <style name="ScamShield.BottomNavigationView" parent="Widget.Material3.BottomNavigationView">
         <item name="android:minHeight">@dimen/nav_height</item>
-        <item name="android:background">@drawable/bg_bottom_nav_rounded</item>
+        <item name="android:background">@drawable/bg_bottom_nav_floating</item>
         <item name="itemIconSize">24dp</item>
         <item name="itemIconTint">@color/nav_item_icon_tint</item>
         <item name="itemTextColor">@color/nav_item_text_tint</item>
@@ -10,14 +10,15 @@
         <item name="itemTextAppearanceInactive">@style/ScamShield.BottomNav.TextInactive</item>
         <item name="itemPaddingTop">12dp</item>
         <item name="itemPaddingBottom">12dp</item>
-        <item name="itemRippleColor">@color/primary_30</item>
+        <item name="itemRippleColor">@color/accent</item>
         <item name="itemActiveIndicatorStyle">@style/ScamShield.BottomNav.ActiveIndicator</item>
         <item name="elevation">8dp</item>
         <item name="labelVisibilityMode">selected</item>
     </style>
     
     <style name="ScamShield.BottomNav.ActiveIndicator" parent="">
-        <item name="android:color">@color/nav_pill_bg</item>
+        <item name="android:color">@color/transparent</item>
+        <item name="android:background">@drawable/bg_nav_pill_active</item>
     </style>
 
     <style name="ScamShield.BottomNav.TextActive" parent="TextAppearance.Material3.LabelSmall">

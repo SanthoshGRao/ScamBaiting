@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:animateLayoutChanges="true"
-        android:layoutAnimation="@anim/layout_fall_down"
+        android:layoutAnimation="@anim/layout_staggered_slide_up"
         android:orientation="vertical"
         android:padding="@dimen/screen_padding">
 
@@ -64,6 +64,9 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:stateListAnimator="@animator/scale_press"
+            android:clickable="true"
+            android:focusable="true"
             style="@style/ScamShield.Card.Hero"
             android:layout_marginBottom="@dimen/card_spacing">
 
@@ -184,6 +187,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="6dp"
                 android:layout_weight="1"
+                android:stateListAnimator="@animator/scale_press"
+                android:clickable="true"
+                android:focusable="true"
                 style="@style/ScamShield.Card.Stat">
 
                 <LinearLayout
@@ -221,10 +227,11 @@
                         style="@style/ScamShield.Caption" />
                         
                     <ProgressBar
+                        android:id="@+id/pbStatScanned"
                         style="?android:attr/progressBarStyleHorizontal"
                         android:layout_width="match_parent"
                         android:layout_height="4dp"
-                        android:progress="100"
+                        android:progress="0"
                         android:progressTint="@color/primary"
                         android:progressBackgroundTint="@color/divider" />
                 </LinearLayout>
@@ -237,6 +244,9 @@
                 android:layout_marginStart="3dp"
                 android:layout_marginEnd="3dp"
                 android:layout_weight="1"
+                android:stateListAnimator="@animator/scale_press"
+                android:clickable="true"
+                android:focusable="true"
                 style="@style/ScamShield.Card.Stat">
 
                 <LinearLayout
@@ -290,6 +300,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
+                android:stateListAnimator="@animator/scale_press"
+                android:clickable="true"
+                android:focusable="true"
                 style="@style/ScamShield.Card.Stat">
 
                 <LinearLayout
@@ -327,10 +340,11 @@
                         style="@style/ScamShield.Caption" />
                         
                     <ProgressBar
+                        android:id="@+id/pbStatBaited"
                         style="?android:attr/progressBarStyleHorizontal"
                         android:layout_width="match_parent"
                         android:layout_height="4dp"
-                        android:progress="100"
+                        android:progress="0"
                         android:progressTint="@color/accent"
                         android:progressBackgroundTint="@color/divider" />
                 </LinearLayout>
@@ -395,6 +409,7 @@
                         android:paddingHorizontal="16dp"
                         android:text="Analyze Now"
                         android:textSize="12sp"
+                        android:stateListAnimator="@animator/scale_press"
                         app:icon="@drawable/ic_chevron_right"
                         app:iconGravity="textEnd"
                         app:iconPadding="4dp" />
@@ -630,24 +645,27 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="20dp">
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="32dp">
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:alpha="0.8"
+                    android:id="@+id/ivRecentActivityShield"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@drawable/bg_persona_icon_plate"
+                    android:backgroundTint="#203B82F6"
+                    android:padding="16dp"
                     android:src="@drawable/ic_shield"
-                    app:tint="@color/text_hint" />
+                    app:tint="@color/primary" />
 
                 <TextView
                     android:id="@+id/tvEmptyState"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:lineSpacingExtra="3dp"
                     android:text="You're protected.\nNo threats detected yet."
+                    android:textAlignment="center"
                     style="@style/ScamShield.Caption" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
