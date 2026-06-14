@@ -443,9 +443,6 @@ class DashboardFragment : Fragment() {
         binding.tvStatus.text = if (enabled)
             "Your device is protected" else getString(R.string.protection_inactive)
 
-        val dotColor = if (enabled) R.color.status_active else R.color.status_inactive
-        binding.statusDot.background.setTint(ContextCompat.getColor(ctx, dotColor))
-
         binding.tvStatusDetail.text = if (enabled)
             "Monitoring WhatsApp, Telegram, SMS, Email, Instagram"
         else
@@ -455,21 +452,6 @@ class DashboardFragment : Fragment() {
             getString(R.string.protection_active_btn)
         else
             getString(R.string.grant_access)
-
-        binding.tvLiveBadge.visibility = if (enabled) View.VISIBLE else View.GONE
-        binding.statusDot.visibility = if (enabled) View.VISIBLE else View.GONE
-
-        pulseAnimator?.cancel()
-        if (enabled) {
-            val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.2f, 1f)
-            val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.2f, 1f)
-            val alpha = PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 0.5f, 1f)
-            pulseAnimator = ObjectAnimator.ofPropertyValuesHolder(binding.statusDot, scaleX, scaleY, alpha).apply {
-                duration = 2000
-                repeatCount = ObjectAnimator.INFINITE
-                start()
-            }
-        }
     }
 
     private fun isNotificationListenerEnabled(): Boolean {

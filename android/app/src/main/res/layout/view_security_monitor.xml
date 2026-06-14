@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="@dimen/security_ring_size"
+    android:layout_height="@dimen/security_ring_size"
+    tools:parentTag="android.widget.FrameLayout">
+
+    <View
+        android:id="@+id/ringGlow"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.5"
+        android:background="@drawable/bg_security_ring_inner" />
+
+    <FrameLayout
+        android:id="@+id/ringOuterContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="4dp">
+
+        <View
+            android:id="@+id/ringOuter"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_security_ring_outer" />
+
+        <!-- Blue Ion 1 -->
+        <View
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_gravity="top|center_horizontal"
+            android:background="@drawable/bg_status_dot"
+            android:backgroundTint="#FF3B82F6" />
+
+        <!-- Blue Ion 2 -->
+        <View
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_gravity="bottom|center_horizontal"
+            android:background="@drawable/bg_status_dot"
+            android:backgroundTint="#FF3B82F6" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/ringMiddleContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="18dp">
+
+        <View
+            android:id="@+id/ringMiddle"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_security_ring_middle" />
+
+        <!-- Cyan Ion -->
+        <View
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_gravity="center_vertical|end"
+            android:background="@drawable/bg_status_dot"
+            android:backgroundTint="#FF06B6D4" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/ringInnerContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="36dp">
+
+        <View
+            android:id="@+id/ringInner"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_security_ring_inner" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_security_shield_plate">
+
+        <ImageView
+            android:id="@+id/ivShieldCenter"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="center"
+            android:contentDescription="@string/protection_active"
+            android:src="@drawable/ic_shield"
+            app:tint="@color/primary" />
+    </FrameLayout>
+
+</merge>

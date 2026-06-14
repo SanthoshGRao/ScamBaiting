@@ -7,6 +7,9 @@
     <!-- Internet for API calls to backend -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- Haptic feedback for alerts -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- SMS access for precise incoming message detection -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
