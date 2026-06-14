@@ -221,7 +221,7 @@ class SettingsFragment : Fragment() {
         }
 
         // Response Delay Slider
-        val savedDelay = prefs.getInt("response_delay", 5).toFloat()
+        val savedDelay = prefs.getInt("response_delay", 10).toFloat()
         binding.sliderDelay.value = savedDelay
         binding.tvDelayValue.text = "${savedDelay.toInt()}s"
 

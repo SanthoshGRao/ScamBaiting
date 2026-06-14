@@ -60,10 +60,10 @@ class BaitingManager @Inject constructor(
         private const val TAG = "BaitingManager"
 
         /**
-         * Single knob for all AI reply waits (typing, server pauses, gaps, follow-up “reading” delays).
-         * 1.0f = current/default behavior. Lower = faster (e.g. 0.3f for demos); higher = slower.
+         * Default response delay in seconds. Used when the user hasn't changed the setting.
+         * Higher = more human-like (scammer won't suspect AI). Lower = faster for testing.
          */
-        private const val REPLY_TIME_MULTIPLIER = 1.0f
+        private const val DEFAULT_RESPONSE_DELAY_SEC = 10
 
         private const val MIN_TYPING_DELAY_MS = 2000L
         private const val MAX_TYPING_DELAY_MS = 25000L
@@ -74,9 +74,25 @@ class BaitingManager @Inject constructor(
         private const val MAX_REPLY_DELAY_MS = 13000L
     }
 
-    /** Applies [REPLY_TIME_MULTIPLIER] without changing any other timing logic. */
+    /**
+     * Dynamic reply time multiplier derived from the user's "Response Delay" setting.
+     *
+     * - 0s  → 0.0  (instant, no delays — testing mode)
+     * - 1s  → 0.1  (near-instant — fast demo)
+     * - 5s  → 0.5  (moderate)
+     * - 10s → 1.0  (default, human-like)
+     * - 20s → 2.0  (extra slow, very cautious human)
+     * - 30s → 3.0  (maximum realism)
+     */
+    private val replyTimeMultiplier: Float
+        get() {
+            val delaySec = prefs.getInt("response_delay", DEFAULT_RESPONSE_DELAY_SEC)
+            return delaySec.toFloat() / DEFAULT_RESPONSE_DELAY_SEC.toFloat()
+        }
+
+    /** Applies dynamic [replyTimeMultiplier] without changing any other timing logic. */
     private fun scaleReplyDelayMs(ms: Long): Long =
-        (ms.toDouble() * REPLY_TIME_MULTIPLIER).toLong().coerceAtLeast(0L)
+        (ms.toDouble() * replyTimeMultiplier).toLong().coerceAtLeast(0L)
 
     // In-memory cache of the latest RemoteInput and PendingIntent for auto-replying
     data class ReplyAction(val intent: PendingIntent, val remoteInput: RemoteInput, val packageName: String)
@@ -380,7 +396,7 @@ class BaitingManager @Inject constructor(
         val baseTypingMs = messageLength * charMs
         val randomJitter = (800L..2500L).random()
         val responseDelaySetting =
-            if (partIndex == 0) prefs.getInt("response_delay", 5) * 1000L else 0L
+            if (partIndex == 0) prefs.getInt("response_delay", DEFAULT_RESPONSE_DELAY_SEC) * 1000L else 0L
 
         // After the first scammer message, first bubble of each new reply should feel less "instant".
         val followUpTypingBoost = if (partIndex == 0 && scammerUserTurns >= 2) {
@@ -475,16 +491,10 @@ class BaitingManager @Inject constructor(
             var replyText = ""
             val isDemoMode = prefs.getBoolean("demo_mode", false)
             val networkUsable = hasUsableNetwork()
-            val cloudReachable = if (!isDemoMode && networkUsable) {
-                _engineStatus.value = EngineStatus.RECONNECTING
-                cloudReplyProvider.isCloudReachable()
-            } else {
-                false
-            }
 
             Log.i(
                 TAG,
-                "Reply provider selection for $senderKey: demoMode=$isDemoMode, networkUsable=$networkUsable, cloudReachable=$cloudReachable, status=${_engineStatus.value}"
+                "Reply provider selection for $senderKey: demoMode=$isDemoMode, networkUsable=$networkUsable, status=${_engineStatus.value}"
             )
 
             if (isDemoMode) {
@@ -497,12 +507,9 @@ class BaitingManager @Inject constructor(
                     plan?.dna ?: ScammerDnaProfileEntity(senderId = senderKey),
                     plan?.knownIntelligence.orEmpty()
                 )
-            } else if (!networkUsable || !cloudReachable) {
+            } else if (!networkUsable) {
                 _engineStatus.value = EngineStatus.OFFLINE_ACTIVE
-                Log.i(
-                    TAG,
-                    "Using offline reply engine because ${if (!networkUsable) "validated internet is unavailable" else "Render cloud is unreachable"}"
-                )
+                Log.i(TAG, "Using offline reply engine because validated internet is unavailable")
                 replyText = offlineReplyEngine.generateReply(
                     session, history, latestMessage,
                     plan?.mission ?: MissionEntity(sessionId = senderKey, senderId = senderKey, missionType = "WASTE_MAXIMUM_TIME"),
