@@ -139,6 +139,78 @@ def _extract_entities(history: List[ChatMessage]) -> dict[str, list[str]]:
 
 
 # ──────────────────────────────────────────────────────────────────
+# CONVERSATIONAL / CASUAL MESSAGE DETECTION
+# ──────────────────────────────────────────────────────────────────
+
+_CASUAL_RE = re.compile(
+    r"^\s*(?:"
+    r"h(?:i|ello|ey|ow are (?:you|u|ya))|" 
+    r"good (?:morning|afternoon|evening|night)|" 
+    r"what(?:'s| is) (?:up|happening|going on)|" 
+    r"(?:are )?(?:you|u) (?:there|here|online|available|free)|" 
+    r"(?:what|who) (?:are|r) (?:you|u)|" 
+    r"(?:how|kaise) (?:are|r) (?:you|u)|" 
+    r"kya (?:chal|ho) (?:raha|rahi)|" 
+    r"(?:theek|thik) (?:ho|hai)|" 
+    r"(?:ok|okay|k|fine|sure|yes|no|ya|yea|yeah|nah|nope|hmm)|" 
+    r"thanks?(?:\s+(?:you|u))?|" 
+    r"bye|good ?bye|take care|see (?:you|u)|" 
+    r"sorry|maaf|excuse me|" 
+    r"(?:tell|bata|batao) (?:me|na)|" 
+    r"kya baat hai|suno|bolo" 
+    r")\s*[.!?]*\s*$",
+    re.I,
+)
+
+_QUESTION_TO_US_RE = re.compile(
+    r"(?:"
+    r"(?:what|where|which|who|how|when|why|kya|kahan|kaise|kaun|kab)\b.{0,60}\?"
+    r"|\?\s*$"
+    r")",
+    re.I,
+)
+
+_TOPIC_SHIFT_INDICATORS = re.compile(
+    r"(?:"
+    r"(?:btw|by the way|anyway|anyways|also|one more thing|listen|wait|actually|achha|acha|sun|suno)|" 
+    r"(?:forget (?:that|it|about)|leave (?:that|it)|chhodo|rehne do|never ?mind)" 
+    r")",
+    re.I,
+)
+
+
+def _is_casual_message(text: str) -> bool:
+    """Detect if a message is casual/conversational (not scam-action)."""
+    clean = text.strip()
+    if len(clean) < 40 and _CASUAL_RE.search(clean):
+        return True
+    return False
+
+
+def _scammer_asks_question(text: str) -> bool:
+    """Detect if the scammer is asking US a question."""
+    return bool(_QUESTION_TO_US_RE.search(text.strip()))
+
+
+def _detect_topic_shift(history: List[ChatMessage], latest: str) -> bool:
+    """Detect if the scammer has shifted topics from what we were discussing."""
+    if _TOPIC_SHIFT_INDICATORS.search(latest):
+        return True
+    # If our last reply asked about X but scammer is now talking about Y
+    if len(history) >= 2:
+        last_assistant = next((m.content for m in reversed(history) if m.role == "assistant"), "")
+        if last_assistant and len(latest) > 5:
+            # Simple heuristic: if less than 15% word overlap, probably topic shifted
+            our_words = set(re.findall(r'\w{3,}', last_assistant.lower()))
+            their_words = set(re.findall(r'\w{3,}', latest.lower()))
+            if our_words and their_words:
+                overlap = len(our_words & their_words) / max(len(their_words), 1)
+                if overlap < 0.1:
+                    return True
+    return False
+
+
+# ──────────────────────────────────────────────────────────────────
 # INTERNAL PATTERNS
 # ──────────────────────────────────────────────────────────────────
 
@@ -241,6 +313,41 @@ class BaitingAgent:
         if last_user:
             lines.append(f"Their latest message: \"{self._truncate(last_user, 200)}\"")
 
+        # ── Contextual awareness flags ──
+        if last_user:
+            is_casual = _is_casual_message(last_user)
+            asks_question = _scammer_asks_question(last_user)
+            topic_shifted = _detect_topic_shift(history, last_user)
+
+            if is_casual:
+                lines.append(
+                    "⚡ CASUAL MESSAGE DETECTED: The scammer sent a casual/conversational message. "
+                    "RESPOND TO IT NATURALLY FIRST (e.g. if they said 'how are you' → answer that), "
+                    "THEN optionally steer back. Do NOT ignore their message and jump to strategy."
+                )
+            if asks_question:
+                lines.append(
+                    "⚡ SCAMMER ASKED A QUESTION: They asked you something. ANSWER their question first "
+                    "before anything else. Do NOT deflect with your own questions instead of answering."
+                )
+            if topic_shifted:
+                lines.append(
+                    "⚡ TOPIC SHIFT: The scammer changed the subject. Follow THEIR new topic. "
+                    "Do NOT continue talking about the old topic they've moved away from."
+                )
+
+            # Count recent questions from our side
+            recent_assistant = [m.content for m in history[-8:] if m.role == "assistant"]
+            recent_question_count = sum(
+                1 for msg in recent_assistant if "?" in msg
+            )
+            if recent_question_count >= 2:
+                lines.append(
+                    "⚠️ YOU HAVE ASKED TOO MANY QUESTIONS RECENTLY. "
+                    "Make a STATEMENT instead. Comment, react, express emotion, or share something — "
+                    "do NOT ask another question this turn."
+                )
+
         return "\n".join(f"- {line}" for line in lines)
 
     def _trim_history(self, history: List[ChatMessage]) -> List[ChatMessage]:
@@ -318,6 +425,37 @@ class BaitingAgent:
         strat_do, strat_dont, strat_shape = self._strategy_lines(strategy)
         context_block = self._build_context_block(request.history)
 
+        # Detect conversational signals for the latest message
+        last_user_msg = next((m.content for m in reversed(request.history) if m.role == "user"), "")
+        is_casual = _is_casual_message(last_user_msg)
+        asks_us_question = _scammer_asks_question(last_user_msg)
+        topic_shifted = _detect_topic_shift(request.history, last_user_msg)
+
+        # Build the contextual response priority instruction
+        response_priority = ""
+        if is_casual:
+            response_priority = (
+                "\n\n═══ ⚡ PRIORITY: RESPOND TO THEIR MESSAGE FIRST ═══\n"
+                "The scammer just sent a CASUAL message. You MUST respond to what they actually said.\n"
+                "Example: If they say 'how are you?' → reply something like 'im good yaar' or 'fine fine busy day today'\n"
+                "Example: If they say 'hello' → reply 'ya hi' or 'hey whats up'\n"
+                "ONLY AFTER acknowledging their message, you can optionally add something related to the ongoing topic.\n"
+                "DO NOT ignore their message and jump straight into strategy questions.\n"
+            )
+        elif asks_us_question:
+            response_priority = (
+                "\n\n═══ ⚡ PRIORITY: ANSWER THEIR QUESTION ═══\n"
+                f"The scammer asked you a question: \"{self._truncate(last_user_msg, 150)}\"\n"
+                "You MUST answer or react to their question FIRST. Do NOT deflect with your own questions.\n"
+                "If you don't know the answer in-character, say something plausible — don't just ask more questions back.\n"
+            )
+        if topic_shifted:
+            response_priority += (
+                "\n═══ ⚡ TOPIC SHIFT DETECTED ═══\n"
+                "The scammer moved to a new topic. FOLLOW their new topic. "
+                "Do NOT keep talking about the old subject they have already moved past.\n"
+            )
+
         system_prompt = (
             "You are playing a CHARACTER who is texting a scammer on WhatsApp. Your job is to waste "
             "the scammer's time by keeping them engaged as long as possible while sounding 100% human.\n\n"
@@ -325,12 +463,28 @@ class BaitingAgent:
             "═══ YOUR CHARACTER ═══\n"
             f"{persona_desc}\n\n"
 
+            "═══ #1 RULE: REPLY TO WHAT THEY JUST SAID ═══\n"
+            "Your reply MUST be a direct response to the scammer's LATEST message. "
+            "Read their last message carefully and respond to THAT specific message.\n"
+            "- If they asked a question → ANSWER it (or react to it in character)\n"
+            "- If they made a statement → ACKNOWLEDGE it before adding anything\n"
+            "- If they said something casual → RESPOND casually first\n"
+            "- If they changed the topic → FOLLOW the new topic\n"
+            "NEVER ignore what they just said to continue an old thread of conversation.\n\n"
+
             "═══ HOW TO THINK ═══\n"
             "Before you reply, mentally do this (but do NOT write it out):\n"
-            "1. What is the scammer trying to get me to do RIGHT NOW?\n"
-            "2. How would my CHARACTER emotionally react to this?\n"
+            "1. What did the scammer JUST SAY in their latest message? Reply to THAT.\n"
+            "2. How would my CHARACTER emotionally react to THIS specific message?\n"
             "3. What would my CHARACTER realistically say — including their specific quirks, mistakes, and personality?\n"
-            "4. Am I about to repeat something I already said? If yes, say something completely different.\n\n"
+            "4. Am I about to repeat something I already said? If yes, say something completely different.\n"
+            "5. Am I asking a question? If I already asked questions in my last 2 replies, make a STATEMENT instead.\n\n"
+
+            "═══ QUESTION LIMIT ═══\n"
+            "- You may ask AT MOST 1 question per reply. Not 2, not 3 — ONE or ZERO.\n"
+            "- If your last 2 replies contained questions, this reply MUST be a statement, reaction, or comment — NO questions at all.\n"
+            "- Mix it up: sometimes react ('oh ok'), sometimes comment ('that sounds complicated'), sometimes share something ('my phone has been acting up today').\n"
+            "- Real humans don't interrogate — they CONVERSE. Statements, reactions, and short comments are just as natural as questions.\n\n"
 
             "═══ INTELLIGENCE RULES ═══\n"
             "- ONLY reference details the scammer actually mentioned. Check the CONTEXT section below for exact amounts, UPI IDs, links, and names they used.\n"
@@ -353,7 +507,10 @@ class BaitingAgent:
             f"═══ CURRENT TACTIC: {strategy} ═══\n"
             f"What to do: {strat_do}\n"
             f"What NOT to do: {strat_dont}\n"
-            f"Reply shape: {strat_shape}\n\n"
+            f"Reply shape: {strat_shape}\n"
+            f"IMPORTANT: Apply the tactic AFTER responding to what they said. The tactic shapes HOW you respond, not WHETHER you respond to their message.\n"
+
+            f"{response_priority}\n"
 
             "═══ OUTPUT FORMAT ═══\n"
             "Write ONLY the final WhatsApp message(s). Send MAXIMUM 1 or 2 bubbles. NEVER send 3 or more.\n"
