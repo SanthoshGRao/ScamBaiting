@@ -157,11 +157,11 @@ class ScamOverlayService : Service() {
         if (isHighRisk) {
             tvTitle.setTextColor(ContextCompat.getColor(this, R.color.risk_high))
             ivIcon.setColorFilter(ContextCompat.getColor(this, R.color.risk_high))
-            layoutBg.setBackgroundColor(android.graphics.Color.parseColor("#20F85149"))
+            layoutBg.setBackgroundColor(ContextCompat.getColor(this, R.color.risk_high_bg))
         } else {
             tvTitle.setTextColor(ContextCompat.getColor(this, R.color.risk_medium))
             ivIcon.setColorFilter(ContextCompat.getColor(this, R.color.risk_medium))
-            layoutBg.setBackgroundColor(android.graphics.Color.parseColor("#20E3B341"))
+            layoutBg.setBackgroundColor(ContextCompat.getColor(this, R.color.risk_medium_bg))
         }
 
         btnClose.setOnClickListener { stopForegroundAndSelf() }

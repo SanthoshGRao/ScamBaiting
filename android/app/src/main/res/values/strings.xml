@@ -6,7 +6,7 @@
     <string name="grant_access">Grant Notification Access</string>
     <string name="protection_active_btn">Protection Active</string>
     <string name="recent_scans">Recent Scans</string>
-    <string name="no_scans_yet">No scans yet. ScamShield will analyze incoming messages automatically.</string>
+    <string name="no_scans_yet">No detection history yet. Start scanning to build insights.</string>
     <string name="total_scanned">Total Scanned</string>
     <string name="threats_blocked">Threats Blocked</string>
     <string name="scam_baited">Scammers Baited</string>
@@ -26,7 +26,7 @@
     <string name="nav_analytics">Analytics</string>
     <string name="nav_simulator">Simulator</string>
     <string name="nav_settings">Settings</string>
-    <string name="scammers_empty">No verified scammers yet. High-risk numbers appear here after alerts.</string>
+    <string name="scammers_empty">No scammers detected yet. Protected conversations will appear here.</string>
     <string name="scammers_tracked_count">%d tracked</string>
 
     <!-- Settings Headers -->
@@ -147,7 +147,7 @@
     <string name="end_simulation">End Session</string>
     <string name="scenario_lottery">Lottery Scam</string>
     <string name="scenario_otp">OTP Fraud</string>
-    <string name="scenario_romance">Romance Scam</string>
+    <string name="scenario_investment">Investment Scam</string>
     <string name="scenario_tech">Tech Support</string>
     <string name="scenario_delivery">Delivery Scam</string>
     <string name="typing_indicator">Typing</string>

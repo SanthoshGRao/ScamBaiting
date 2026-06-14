@@ -24,7 +24,7 @@ internal object SimulatorScriptBank {
     fun variantCount(scenario: String): Int = when (scenario) {
         "lottery" -> LOTTERY_SCAMMER.size
         "otp" -> OTP_SCAMMER.size
-        "romance" -> ROMANCE_SCAMMER.size
+        "investment" -> INVESTMENT_SCAMMER.size
         "tech" -> TECH_SCAMMER.size
         "delivery" -> DELIVERY_SCAMMER.size
         else -> LOTTERY_SCAMMER.size
@@ -42,9 +42,9 @@ internal object SimulatorScriptBank {
         return scam.zip(user)
     }
 
-    fun romance(persona: String, variant: Int): List<Pair<String, String>> {
-        val scam = ROMANCE_SCAMMER[variant.mod(ROMANCE_SCAMMER.size)]
-        val user = romanceUser(normalizePersona(persona))
+    fun investment(persona: String, variant: Int): List<Pair<String, String>> {
+        val scam = INVESTMENT_SCAMMER[variant.mod(INVESTMENT_SCAMMER.size)]
+        val user = investmentUser(normalizePersona(persona))
         return scam.zip(user)
     }
 
@@ -65,7 +65,7 @@ internal object SimulatorScriptBank {
         listOf(
             "Congratulations! You've been selected as our GRAND PRIZE WINNER of \$1,000,000!",
             "Yes! You won ONE MILLION DOLLARS in the International Email Lottery! Claim now before it expires!",
-            "To claim your prize, you just need to pay a small processing fee of \$500. This is standard procedure.",
+            "To claim your prize, you just need to pay a small processing fee of \\\$500. This is standard procedure.",
             "Please send your full bank account details so we can transfer the prize money directly.",
             "The fastest way is Western Union. Send the fee to our claims agent immediately.",
         ),
@@ -77,7 +77,7 @@ internal object SimulatorScriptBank {
             "Use UPI now or your prize will be cancelled permanently.",
         ),
         listOf(
-            "WINNER ALERT: You are our 1,000th customer — you get \$50,000 cash + a car!",
+            "WINNER ALERT: You are our 1,000th customer — you get \\$50,000 cash + a car!",
             "We already reserved your name. Only one step left: verify identity with a refundable deposit.",
             "Deposit goes to Reserve Bank escrow — 100% refundable after verification.",
             "Send PAN + Aadhaar + bank screenshot on WhatsApp for fast processing.",
@@ -202,68 +202,68 @@ internal object SimulatorScriptBank {
         else -> otpUser("half_understanding_user")
     }
 
-    // --- Romance ---
-    private val ROMANCE_SCAMMER = listOf(
+    // --- Investment ---
+    private val INVESTMENT_SCAMMER = listOf(
         listOf(
-            "Hi darling! I found your profile and I think we have a real connection. You're so beautiful/handsome!",
-            "I'm a US military officer stationed overseas. I'm so lonely here. I need someone special like you.",
-            "I'm stranded at the airport and my wallet was stolen! Could you help me with a small loan for a plane ticket?",
-            "I promise I'll pay you back when I arrive! Here's my photo. Don't I look trustworthy?",
-            "Baby please, this is urgent! I just need \$300 for the ticket. You're the only one I can trust!",
+            "Hello! I am a senior analyst at Binance Global. I have a highly profitable crypto trading opportunity for you.",
+            "Our AI algorithm guarantees a 300% return in just 7 days. You only need to deposit 100 USD to start.",
+            "I've successfully helped hundreds of people double their wealth. Here are screenshots of my clients' profits.",
+            "Click this link to create your VIP trading account and deposit the funds.",
+            "The market is moving fast! If you delay, you will miss out on today's massive gains.",
         ),
         listOf(
-            "Hey love — good morning from Dubai. Miss your voice already.",
-            "Contract ended early; need \$200 Western Union for hotel checkout today.",
-            "My card got blocked — can you help just this once? I'll wire back double.",
-            "Sending you a \"contract\" PDF — open and sign so my lawyer releases funds.",
-            "If you truly care, you'll help before midnight. Others offered but I chose you.",
+            "Hi, I noticed you're interested in making passive income. I'm a forex broker offering guaranteed daily payouts.",
+            "Simply send 500 USD to my trading wallet, and I will handle the trades. You will receive 1500 USD by tomorrow.",
+            "There's no risk involved. Our company covers any losses. Send the Bitcoin to this address.",
+            "Once the transfer is complete, send me a screenshot of the receipt for verification.",
+            "Hurry, this VIP pool closes in 1 hour. I'm trying to help you secure a spot.",
         ),
     )
 
-    private fun romanceUser(p: String): List<String> = when (p) {
+    private fun investmentUser(p: String): List<String> = when (p) {
         "busy_professional" -> listOf(
-            "hey.. who is this i dont use dating apps much",
-            "military? which base. my cousin was navy",
-            "stranded sounds rough but i dont send money to strangers",
-            "photo looks.. very stock image google lens says",
-            "three hundred is not small. call your embassy",
+            "where did u get my number? i have a broker already",
+            "300% in 7 days is mathematically impossible without high risk",
+            "screenshots can be easily faked. send me a verifiable audit report",
+            "i don't click random links. what is your company's registration number?",
+            "if it's so profitable, why do you need my 100 dollars? blocking you.",
         )
         "skeptical_buyer" -> listOf(
-            "reverse image search says youre a model from 2014",
-            "wire first then meet — no exceptions",
-            "pdf from unknown = malware. no thanks",
-            "embassy handles stranded soldiers — not random chats",
-            "blocked. report phishing",
+            "guaranteed daily payouts in forex? that's a classic ponzi red flag",
+            "i'm not sending crypto to an unverified wallet address",
+            "show me your SEC or SEBI registration details first",
+            "the domain on your link was registered 3 days ago. nice try.",
+            "reported this number to cybercrime. goodbye.",
         )
         "half_understanding_user" -> listOf(
-            "hi.. is this wrong number",
-            "overseas? what time is it there im bad at math",
-            "airport loan.. cant you use atm",
-            "pdf wont open on my phone its old",
-            "midnight?? i sleep at 9 sorry",
+            "hi... is this about my bank account?",
+            "what is a VIP pool? is it like mutual funds?",
+            "i don't know how to buy bitcoin. can i send a cheque instead?",
+            "my nephew said guaranteed profit usually means a scam",
+            "i need to ask my husband before sending any money",
         )
         "lonely_conversationalist" -> listOf(
-            "i love walks!! to the fridge!",
-            "stranded?? have u tried turning it off and on",
-            "i only have monopoly money. is that ok",
-            "handsome pic! but thats stock photo from getty images haha",
-            "ill send money right after my pet unicorn delivers paycheck",
+            "wow 300%? i could finally fix my roof with that!",
+            "are you trading from london? the weather there must be lovely today",
+            "i only have some change in my piggy bank haha",
+            "can you teach me how the AI works? i love technology",
+            "i'll buy you a coffee if you actually double my money",
         )
         "hopeful_opportunity_seeker" -> listOf(
-            "i love connections!! is this destiny",
-            "military wow so brave — send me your unit patch photo",
-            "stranded omg ill ask my mom.. she says no lol",
-            "pdf signed in crayon ok?",
-            "300 is my whole week budget.. rain check?",
+            "omg 300% return? count me in, how do i start!",
+            "is 100 USD the minimum? what if i invest 1000 USD?",
+            "i've been looking for an opportunity like this for months",
+            "okay i'm creating the account now, wait a sec",
+            "i sent the money! when will i see the returns in my account?",
         )
         "curious_user" -> listOf(
-            "which app did you find me on",
-            "how do i know youre not a bot",
-            "plane ticket how much exactly in my currency",
-            "can we voice note instead of pdf",
-            "my friend said romance scams start like this",
+            "what specific AI algorithm are you using?",
+            "can you explain the trading pair you're targeting today?",
+            "why do i have to send it to your wallet instead of my own?",
+            "where are the company headquarters located?",
+            "how do you handle market volatility to guarantee returns?",
         )
-        else -> romanceUser("hopeful_opportunity_seeker")
+        else -> investmentUser("hopeful_opportunity_seeker")
     }
 
     // --- Tech support ---
@@ -430,7 +430,7 @@ internal object SimulatorScriptBank {
         when (scenario) {
             "lottery" -> lottery(persona, variant)
             "otp" -> otp(persona, variant)
-            "romance" -> romance(persona, variant)
+            "investment" -> investment(persona, variant)
             "tech" -> tech(persona, variant)
             "delivery" -> delivery(persona, variant)
             else -> lottery(persona, variant)
@@ -440,7 +440,7 @@ internal object SimulatorScriptBank {
         val scams = when (scenario) {
             "lottery" -> EXT_SCAM_LOTTERY
             "otp" -> EXT_SCAM_OTP
-            "romance" -> EXT_SCAM_ROMANCE
+            "investment" -> EXT_SCAM_INVESTMENT
             "tech" -> EXT_SCAM_TECH
             "delivery" -> EXT_SCAM_DELIVERY
             else -> EXT_SCAM_LOTTERY
@@ -456,7 +456,7 @@ internal object SimulatorScriptBank {
         val salt = when (scenario) {
             "lottery" -> 0
             "otp" -> 3
-            "romance" -> 5
+            "investment" -> 5
             "tech" -> 2
             "delivery" -> 4
             else -> 1
@@ -500,22 +500,22 @@ internal object SimulatorScriptBank {
         "Final OTP or permanent cool-off on all cards.",
     )
 
-    private val EXT_SCAM_ROMANCE = listOf(
-        "My commander needs a sworn affidavit from you — lawyer fee is tiny.",
-        "Crypto wallet crashed — send BTC gift card codes as emergency bridge.",
-        "Hospital bill overseas — insurance will reimburse you next week.",
-        "Diamond ring for you is at customs — pay duty so I can propose in person.",
-        "Blacklisted from flights until airport tax cleared — please help today.",
-        "Video call broken on base Wi‑Fi — send selfie holding ID for verification.",
-        "Kid’s school fees due while I’m deployed — you’re family now.",
-        "Investment window on oil rig bonus — double if you wire before Friday.",
-        "Pastor says God sent you to save my mission.",
-        "Lawyer retainer $150 to unlock inheritance papers naming you beneficiary.",
-        "Parcel of gold bars stuck — security wants small clearance from you.",
-        "Need VPN subscription paid so we can chat safely (your card).",
-        "Commanding officer wants proof you’re trustworthy — small loan first.",
-        "Auction site needs deposit under your name — I’ll buy it back later.",
-        "Emergency surgery for mother — Western Union only, hospital insists.",
+    private val EXT_SCAM_INVESTMENT = listOf(
+        "The market is highly volatile today, send another 200 USD to secure your margin.",
+        "Your profit is ready to withdraw, but you must pay a 15% tax upfront.",
+        "Your account got frozen due to suspicious activity. Send an unfreezing fee.",
+        "We're launching a new coin tomorrow, VIP members must deposit 500 USD now.",
+        "The AI algorithm detected a massive pump, increase your capital to maximize profits.",
+        "A small technical fee is required to link your bank account for withdrawal.",
+        "You need to upgrade to a Gold account to withdraw funds over 1000 USD.",
+        "Your trade was successful but the network fee needs to be paid manually.",
+        "Our broker requires a one-time verification deposit which will be fully refunded.",
+        "The SEC changed their policy, you need an international clearance fee.",
+        "Your wallet address had a typo, we need a recovery fee to retrieve the funds.",
+        "Send 50 USD in Ethereum for gas fees so we can process your withdrawal.",
+        "An exclusive whale signal just dropped, don't miss out, send 300 USD now.",
+        "We need proof of funds to process your million dollar payout, send a 1000 USD deposit.",
+        "Your account manager changed, pay a small transition fee to keep your trades active.",
     )
 
     private val EXT_SCAM_TECH = listOf(
@@ -614,7 +614,7 @@ internal object SimulatorScriptBank {
             "if i had a million id buy pizza for the block",
             "you type fast — are you ai too",
             "i baked cookies want the recipe instead",
-            "romance is nice but my wallet is shy",
+            "investing is nice but my wallet is shy",
             "lets chat about clouds theyre free",
             "i already promised my budget to houseplants",
             "send a selfie with today’s newspaper maybe",

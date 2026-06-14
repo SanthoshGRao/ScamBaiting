@@ -4,6 +4,6 @@
     <gradient
         android:startColor="@color/gradient_hero_start"
         android:endColor="@color/gradient_hero_end"
-        android:angle="135" />
-    <corners android:radius="16dp" />
+        android:angle="145" />
+    <corners android:radius="@dimen/card_radius" />
 </shape>

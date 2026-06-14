@@ -23,7 +23,11 @@ import com.google.android.material.chip.Chip
 import com.scamshield.app.R
 import com.scamshield.app.databinding.FragmentDashboardBinding
 import com.scamshield.app.service.ScamShieldNotificationService
+import com.scamshield.app.ui.widget.SecurityMonitorView
 import com.scamshield.app.util.formatCategoryLabel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -40,6 +44,9 @@ class DashboardFragment : Fragment() {
 
     private var pulseAnimator: ObjectAnimator? = null
     private var lastAnalyzedText: String? = null
+    private var lastScannedCount = 0
+    private var lastThreatCount = 0
+    private var lastBaitedCount = 0
     private val sandboxMessage = "URGENT: Your account was suspended for unusual activity. Click here for a KYC update and to verify your PAN card: http://sbi-kyc-verify.com"
 
     override fun onCreateView(
@@ -53,6 +60,7 @@ class DashboardFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setupUI()
         observeViewModel()
+        viewModel.loadAnalytics()
         // Trigger staggered layout animation
         binding.dashboardRoot.layoutAnimation =
             AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_stagger)
@@ -61,6 +69,7 @@ class DashboardFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        viewModel.loadAnalytics()
         updateProtectionStatus()
     }
 
@@ -133,6 +142,29 @@ class DashboardFragment : Fragment() {
     }
 
     private fun observeViewModel() {
+        viewModel.detectionHistory.observe(viewLifecycleOwner) { history ->
+            val items = history.orEmpty()
+            val scanned = items.size
+            val threats = items.count { it.isSuspicious }
+            animateCounter(binding.tvScannedCount, lastScannedCount, scanned)
+            animateCounter(binding.tvThreatsCount, lastThreatCount, threats)
+            lastScannedCount = scanned
+            lastThreatCount = threats
+            updateThreatCardStyle(threats)
+            updateLastScan(items.maxOfOrNull { it.timestamp } ?: 0L)
+            binding.tvEmptyState.text = if (items.isEmpty()) {
+                getString(R.string.no_scans_yet)
+            } else {
+                "${items.size} messages analyzed. Open message view for details."
+            }
+        }
+
+        viewModel.baitingSessions.observe(viewLifecycleOwner) { sessions ->
+            val count = sessions.orEmpty().size
+            animateCounter(binding.tvBaitedCount, lastBaitedCount, count)
+            lastBaitedCount = count
+        }
+
         viewModel.analysisResult.observe(viewLifecycleOwner) { result ->
             if (result == null) return@observe
 
@@ -154,13 +186,22 @@ class DashboardFragment : Fragment() {
 
             // Verdict title
             val riskLabel = when {
-                confPercent >= 75 -> "HIGH"
-                confPercent >= 45 -> "MEDIUM"
-                confPercent >= 20 -> "LOW"
+                confPercent >= 75 -> "HIGH RISK"
+                confPercent >= 45 -> "MEDIUM RISK"
+                confPercent >= 20 -> "LOW RISK"
                 else -> "SAFE"
             }
+            binding.tvResultBadge.text = riskLabel
+            binding.tvResultBadge.setBackgroundResource(
+                when {
+                    confPercent >= 75 -> R.drawable.bg_badge_high
+                    confPercent >= 45 -> R.drawable.bg_badge_medium
+                    confPercent >= 20 -> R.drawable.bg_badge_low
+                    else -> R.drawable.bg_badge_safe
+                }
+            )
             binding.tvResultTitle.text = if (isScam)
-                "⚠️ $riskLabel RISK SCAM ($confPercent%)" else "✅ SAFE MESSAGE ($confPercent%)"
+                "Scam detected ($confPercent% confidence)" else "Message appears safe ($confPercent%)"
             binding.tvResultTitle.setTextColor(
                 ContextCompat.getColor(requireContext(), if (isScam) R.color.risk_high else R.color.risk_safe)
             )
@@ -186,8 +227,8 @@ class DashboardFragment : Fragment() {
             // Animated count-up on confidence
             animateCounter(binding.tvResultConfBadge, 0, confPercent, "%d%%")
 
-            // Category
-            binding.tvResultCategory.text = "Category: ${result.bestCategory.formatCategoryLabel()}"
+            // Category chip
+            binding.tvResultCategory.text = result.bestCategory.formatCategoryLabel()
             val linkRisk = result.serverVerdict?.link_risk_score ?: 0f
             if (linkRisk > 0.4f) {
                 binding.tvResultCategory.append("  •  Link risk ${(linkRisk * 100).toInt()}%")
@@ -272,20 +313,66 @@ class DashboardFragment : Fragment() {
             binding.btnMarkScam.alpha = 1f
             binding.btnMarkSafe.text = getString(R.string.mark_safe)
             binding.btnMarkScam.text = getString(R.string.mark_scam)
+
+            if (isScam) {
+                binding.securityMonitor.setState(SecurityMonitorView.State.THREAT)
+            } else {
+                updateProtectionStatus()
+            }
+            viewModel.loadAnalytics()
         }
 
         viewModel.isLoading.observe(viewLifecycleOwner) { loading ->
             binding.btnAnalyze.isEnabled = !loading
             binding.btnAnalyze.text = if (loading) "Analyzing..." else "Analyze Message"
+            if (loading) {
+                binding.securityMonitor.setState(SecurityMonitorView.State.SCANNING)
+            } else if (!isNotificationListenerEnabled()) {
+                binding.securityMonitor.setState(SecurityMonitorView.State.INACTIVE)
+            } else {
+                binding.securityMonitor.setState(SecurityMonitorView.State.PROTECTED)
+            }
         }
     }
 
-    /**
-     * Animate a counter from startVal to endVal on a TextView.
-     */
-    private fun animateCounter(view: android.widget.TextView, startVal: Int, endVal: Int, format: String) {
+    private fun updateThreatCardStyle(threatCount: Int) {
+        val ctx = requireContext()
+        val hasThreats = threatCount > 0
+        val iconColor = if (hasThreats) R.color.risk_high else R.color.text_secondary
+        val countColor = if (hasThreats) R.color.risk_high else R.color.text_primary
+        binding.ivThreatIcon.setColorFilter(ContextCompat.getColor(ctx, iconColor))
+        binding.tvThreatsCount.setTextColor(ContextCompat.getColor(ctx, countColor))
+        if (hasThreats) {
+            binding.cardStatThreats.strokeColor = ContextCompat.getColor(ctx, R.color.risk_high)
+            binding.cardStatThreats.strokeWidth = resources.getDimensionPixelSize(R.dimen.card_stroke_width)
+        } else {
+            binding.cardStatThreats.strokeColor = ContextCompat.getColor(ctx, R.color.card_stroke)
+            binding.cardStatThreats.strokeWidth = resources.getDimensionPixelSize(R.dimen.card_stroke_width)
+        }
+    }
+
+    private fun updateLastScan(latestTimestamp: Long) {
+        if (latestTimestamp <= 0L) {
+            binding.tvLastScan.visibility = View.GONE
+            return
+        }
+        val formatted = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(latestTimestamp))
+        binding.tvLastScan.text = "Last scan: $formatted"
+        binding.tvLastScan.visibility = View.VISIBLE
+    }
+
+    private fun animateCounter(
+        view: android.widget.TextView,
+        startVal: Int,
+        endVal: Int,
+        format: String = "%d",
+    ) {
+        if (startVal == endVal) {
+            view.text = String.format(format, endVal)
+            return
+        }
         val animator = ValueAnimator.ofInt(startVal, endVal)
-        animator.duration = 600
+        animator.duration = 350
         animator.interpolator = DecelerateInterpolator()
         animator.addUpdateListener { animation ->
             val value = animation.animatedValue as Int
@@ -344,9 +431,17 @@ class DashboardFragment : Fragment() {
     private fun updateProtectionStatus() {
         val ctx = context ?: return
         val enabled = isNotificationListenerEnabled()
+        val loading = viewModel.isLoading.value == true
+
+        if (!loading) {
+            binding.securityMonitor.setState(
+                if (enabled) SecurityMonitorView.State.PROTECTED
+                else SecurityMonitorView.State.INACTIVE
+            )
+        }
 
         binding.tvStatus.text = if (enabled)
-            getString(R.string.protection_active) else getString(R.string.protection_inactive)
+            "Your device is protected" else getString(R.string.protection_inactive)
 
         val dotColor = if (enabled) R.color.status_active else R.color.status_inactive
         binding.statusDot.background.setTint(ContextCompat.getColor(ctx, dotColor))
@@ -354,24 +449,23 @@ class DashboardFragment : Fragment() {
         binding.tvStatusDetail.text = if (enabled)
             "Monitoring WhatsApp, Telegram, SMS, Email, Instagram"
         else
-            "Tap below to grant notification access"
+            "Enable notification access to begin protection"
 
         binding.btnToggleProtection.text = if (enabled)
             getString(R.string.protection_active_btn)
         else
             getString(R.string.grant_access)
 
-        // Show LIVE badge when active
         binding.tvLiveBadge.visibility = if (enabled) View.VISIBLE else View.GONE
+        binding.statusDot.visibility = if (enabled) View.VISIBLE else View.GONE
 
-        // Pulse animation on active dot
         pulseAnimator?.cancel()
         if (enabled) {
-            val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.3f, 1f)
-            val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.3f, 1f)
-            val alpha = PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 0.6f, 1f)
+            val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.2f, 1f)
+            val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.2f, 1f)
+            val alpha = PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 0.5f, 1f)
             pulseAnimator = ObjectAnimator.ofPropertyValuesHolder(binding.statusDot, scaleX, scaleY, alpha).apply {
-                duration = 1500
+                duration = 2000
                 repeatCount = ObjectAnimator.INFINITE
                 start()
             }

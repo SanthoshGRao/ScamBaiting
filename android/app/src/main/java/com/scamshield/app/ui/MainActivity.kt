@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
@@ -16,6 +17,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import com.scamshield.app.R
 import com.scamshield.app.databinding.ActivityMainBinding
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applySystemBarAppearance()
 
         requestNotificationPermissionIfNeeded()
         requestSmsPermissionsIfNeeded()
@@ -62,6 +65,12 @@ class MainActivity : AppCompatActivity() {
                 syncBottomNavToTag(activeFragmentTag)
             }
         }
+    }
+
+    private fun applySystemBarAppearance() {
+        val isLightTheme = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) !=
+            Configuration.UI_MODE_NIGHT_YES
+        WindowCompat.getInsetsController(window, window.decorView)?.isAppearanceLightStatusBars = isLightTheme
     }
 
     override fun onResume() {

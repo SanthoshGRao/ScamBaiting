@@ -3,6 +3,21 @@
     <dimen name="chat_bubble_max_width">300dp</dimen>
     <dimen name="chat_avatar_size">40dp</dimen>
     <dimen name="chat_bubble_radius">18dp</dimen>
-    <!-- Persona picker: scroll region cap so all options + dialog buttons fit -->
     <dimen name="persona_picker_scroll_max">400dp</dimen>
+
+    <!-- Midnight Security spacing -->
+    <dimen name="screen_padding">24dp</dimen>
+    <dimen name="section_spacing">32dp</dimen>
+    <dimen name="card_spacing">16dp</dimen>
+    <dimen name="card_radius">20dp</dimen>
+    <dimen name="card_radius_compact">16dp</dimen>
+    <dimen name="card_radius_small">12dp</dimen>
+    <dimen name="card_stroke_width">1dp</dimen>
+    <dimen name="card_elevation">4dp</dimen>
+    <dimen name="button_radius">14dp</dimen>
+    <dimen name="input_radius">20dp</dimen>
+    <dimen name="nav_pill_radius">28dp</dimen>
+    <dimen name="nav_pill_margin">16dp</dimen>
+    <dimen name="nav_height">72dp</dimen>
+    <dimen name="security_ring_size">160dp</dimen>
 </resources>

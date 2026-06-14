@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
     <style name="ScamShield.BottomNavigationView" parent="Widget.Material3.BottomNavigationView">
-        <item name="android:minHeight">64dp</item>
-        <item name="android:background">@drawable/bg_bottom_nav</item>
-        <item name="itemIconSize">26dp</item>
+        <item name="android:minHeight">@dimen/nav_height</item>
+        <item name="android:background">@drawable/bg_bottom_nav_pill</item>
+        <item name="itemIconSize">22dp</item>
         <item name="itemIconTint">@color/nav_item_icon_tint</item>
         <item name="itemTextColor">@color/nav_item_text_tint</item>
         <item name="itemTextAppearanceActive">@style/ScamShield.BottomNav.TextActive</item>
         <item name="itemTextAppearanceInactive">@style/ScamShield.BottomNav.TextInactive</item>
         <item name="itemPaddingTop">8dp</item>
-        <item name="itemPaddingBottom">10dp</item>
+        <item name="itemPaddingBottom">8dp</item>
         <item name="itemRippleColor">@color/primary_30</item>
-        <item name="elevation">10dp</item>
+        <item name="elevation">12dp</item>
+        <item name="labelVisibilityMode">labeled</item>
     </style>
 
-    <style name="ScamShield.BottomNav.TextActive" parent="TextAppearance.Material3.LabelMedium">
+    <style name="ScamShield.BottomNav.TextActive" parent="TextAppearance.Material3.LabelSmall">
         <item name="android:textStyle">bold</item>
-        <item name="android:textColor">@color/primary_light</item>
-        <item name="android:letterSpacing">0.01</item>
+        <item name="android:textColor">@color/nav_active</item>
+        <item name="android:letterSpacing">0.02</item>
     </style>
 
-    <style name="ScamShield.BottomNav.TextInactive" parent="TextAppearance.Material3.LabelMedium">
+    <style name="ScamShield.BottomNav.TextInactive" parent="TextAppearance.Material3.LabelSmall">
         <item name="android:textColor">@color/nav_inactive</item>
-        <item name="android:letterSpacing">0.01</item>
+        <item name="android:letterSpacing">0.02</item>
     </style>
 </resources>

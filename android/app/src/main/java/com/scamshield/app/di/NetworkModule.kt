@@ -41,6 +41,9 @@ object NetworkModule {
     /** Dynamically fallback to Render cloud if localhost fails */
     private val fallbackInterceptor = Interceptor { chain ->
         val request = chain.request()
+        if (request.url.host.contains("onrender.com")) {
+            return@Interceptor chain.proceed(request)
+        }
         try {
             // Try the primary URL with a short connect timeout so it doesn't hang if your PC is offline
             chain.withConnectTimeout(2, TimeUnit.SECONDS).proceed(request)

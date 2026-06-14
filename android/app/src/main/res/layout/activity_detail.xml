@@ -12,18 +12,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/detection_detail"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="@color/text_primary"
+        style="@style/ScamShield.PageTitle"
         android:layout_marginBottom="24dp" />
 
     <!-- Verdict -->
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/card_bg"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="8dp"
+        style="@style/ScamShield.Card"
         android:layout_marginBottom="16dp">
 
         <LinearLayout
@@ -55,15 +51,13 @@
                 android:textSize="14sp"
                 android:textColor="@color/text_secondary" />
         </LinearLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 
     <!-- Details -->
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/card_bg"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="4dp"
+        style="@style/ScamShield.Card"
         android:layout_marginBottom="24dp">
 
         <LinearLayout
@@ -119,16 +113,15 @@
                     android:textColor="@color/text_primary" />
             </LinearLayout>
         </LinearLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnBack"
+        style="@style/ScamShield.Button.Outlined"
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:text="← Back to Dashboard"
         android:textSize="15sp"
-        android:textAllCaps="false"
-        app:backgroundTint="@color/card_elevated"
-        app:cornerRadius="12dp" />
+        app:cornerRadius="@dimen/button_radius" />
 
 </LinearLayout>

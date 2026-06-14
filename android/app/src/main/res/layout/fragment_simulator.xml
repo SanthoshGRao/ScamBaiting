@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_sim_page_gradient"
+    android:background="@color/bg_main"
     android:orientation="vertical">
 
     <!-- Header -->
@@ -51,9 +51,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/simulator_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
+                    style="@style/ScamShield.SectionTitle" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -135,11 +133,11 @@
                 android:text="@string/scenario_otp" />
 
             <com.google.android.material.chip.Chip
-                android:id="@+id/chipRomance"
+                android:id="@+id/chipInvestment"
                 style="@style/ScamShield.Chip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/scenario_romance" />
+                android:text="@string/scenario_investment" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipTech"

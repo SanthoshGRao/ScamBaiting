@@ -200,7 +200,7 @@ class SimulatorFragment : Fragment() {
             currentScenario = when {
                 checkedIds.contains(R.id.chipLottery) -> "lottery"
                 checkedIds.contains(R.id.chipOtp) -> "otp"
-                checkedIds.contains(R.id.chipRomance) -> "romance"
+                checkedIds.contains(R.id.chipInvestment) -> "investment"
                 checkedIds.contains(R.id.chipTech) -> "tech"
                 checkedIds.contains(R.id.chipDelivery) -> "delivery"
                 else -> "lottery"
@@ -331,6 +331,12 @@ class SimulatorFragment : Fragment() {
             .start()
     }
 
+    private fun getRevealTimeMs(text: String): Long {
+        val step = if (text.length > 120) 3 else if (text.length > 60) 2 else 1
+        val delayMs = if (text.length > 120) 10L else 14L
+        return ((text.length / step) * delayMs) + 150L
+    }
+
     private fun postScammerMessage(delay: Long) {
         if (!isRunning) return
         handler.postDelayed(object : Runnable {
@@ -354,7 +360,7 @@ class SimulatorFragment : Fragment() {
                 val pair = script[currentStep]
                 showTypingIndicator(getString(R.string.typing_scammer_composing))
 
-                val scammerTypingTime = kotlin.math.min((pair.first.length * 42L) + 700L, 3800L)
+                val scammerTypingTime = 300L
 
                 handler.postDelayed(object : Runnable {
                     override fun run() {
@@ -362,25 +368,30 @@ class SimulatorFragment : Fragment() {
                         hideTypingIndicator()
                         addMessage(pair.first, isScammer = true)
 
-                        showTypingIndicator(getString(R.string.typing_agent_composing))
-
-                        val baseDelayMs = prefs.getInt("response_delay", 2) * 1000L
-                        val stealth = prefs.getBoolean("stealth_mode", false)
-                        val jitter = if (stealth) (Math.random() * 5000).toLong() else 0L
-                        val aiTypingTime = kotlin.math.min((pair.second.length * 48L) + 1000L, 5500L)
-                        val totalResponseDelay = baseDelayMs + jitter + aiTypingTime
+                        val scammerRevealTime = getRevealTimeMs(pair.first)
 
                         handler.postDelayed(object : Runnable {
                             override fun run() {
                                 if (!isRunning || _binding == null) return
-                                hideTypingIndicator()
-                                addMessage(pair.second, isScammer = false)
-                                currentStep++
-                                updateRoundProgress()
-                                updateContinueVisibility()
-                                postScammerMessage((900L..2200L).random())
+                                showTypingIndicator(getString(R.string.typing_agent_composing))
+
+                                val totalResponseDelay = 300L
+
+                                handler.postDelayed(object : Runnable {
+                                    override fun run() {
+                                        if (!isRunning || _binding == null) return
+                                        hideTypingIndicator()
+                                        addMessage(pair.second, isScammer = false)
+                                        currentStep++
+                                        updateRoundProgress()
+                                        updateContinueVisibility()
+
+                                        val aiRevealTime = getRevealTimeMs(pair.second)
+                                        postScammerMessage(aiRevealTime + 300L)
+                                    }
+                                }, totalResponseDelay)
                             }
-                        }, totalResponseDelay)
+                        }, scammerRevealTime)
                     }
                 }, scammerTypingTime)
             }
@@ -412,7 +423,7 @@ class SimulatorFragment : Fragment() {
         return when (currentScenario) {
             "lottery" -> SimulatorScriptBank.lottery(persona, scriptVariantIndex)
             "otp" -> SimulatorScriptBank.otp(persona, scriptVariantIndex)
-            "romance" -> SimulatorScriptBank.romance(persona, scriptVariantIndex)
+            "investment" -> SimulatorScriptBank.investment(persona, scriptVariantIndex)
             "tech" -> SimulatorScriptBank.tech(persona, scriptVariantIndex)
             "delivery" -> SimulatorScriptBank.delivery(persona, scriptVariantIndex)
             else -> SimulatorScriptBank.lottery(persona, scriptVariantIndex)
