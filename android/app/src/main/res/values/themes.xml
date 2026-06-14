@@ -41,6 +41,12 @@
         <item name="trackColorInactive">@color/slider_track</item>
         <item name="thumbColor">@color/primary</item>
         <item name="haloColor">@color/primary_30</item>
+        <item name="trackHeight">8dp</item>
+        <item name="thumbRadius">14dp</item>
+        <item name="haloRadius">28dp</item>
+        <item name="tickColorActive">@color/white</item>
+        <item name="tickColorInactive">@color/divider</item>
+        <item name="tickVisible">true</item>
     </style>
 
     <style name="ScamShield.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">

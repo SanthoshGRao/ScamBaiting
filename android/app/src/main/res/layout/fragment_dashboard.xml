@@ -12,6 +12,7 @@
         android:id="@+id/dashboardRoot"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:animateLayoutChanges="true"
         android:layoutAnimation="@anim/layout_fall_down"
         android:orientation="vertical"
         android:padding="@dimen/screen_padding">

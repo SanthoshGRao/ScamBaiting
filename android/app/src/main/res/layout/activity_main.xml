@@ -19,9 +19,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:layout_marginStart="@dimen/nav_pill_margin"
-        android:layout_marginEnd="@dimen/nav_pill_margin"
-        android:layout_marginBottom="@dimen/nav_pill_margin"
         app:labelVisibilityMode="labeled"
         app:menu="@menu/bottom_nav_menu" />
 

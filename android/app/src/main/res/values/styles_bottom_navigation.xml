@@ -2,7 +2,7 @@
 <resources>
     <style name="ScamShield.BottomNavigationView" parent="Widget.Material3.BottomNavigationView">
         <item name="android:minHeight">@dimen/nav_height</item>
-        <item name="android:background">@drawable/bg_bottom_nav_pill</item>
+        <item name="android:background">@color/nav_bg</item>
         <item name="itemIconSize">22dp</item>
         <item name="itemIconTint">@color/nav_item_icon_tint</item>
         <item name="itemTextColor">@color/nav_item_text_tint</item>
@@ -11,7 +11,7 @@
         <item name="itemPaddingTop">8dp</item>
         <item name="itemPaddingBottom">8dp</item>
         <item name="itemRippleColor">@color/primary_30</item>
-        <item name="elevation">12dp</item>
+        <item name="elevation">8dp</item>
         <item name="labelVisibilityMode">labeled</item>
     </style>
 

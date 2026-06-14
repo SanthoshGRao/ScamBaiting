@@ -494,6 +494,7 @@ class BaitingAgent:
             "- Track the conversation flow. If you asked them a question and they answered it, acknowledge the answer before asking something new.\n\n"
 
             "═══ REALISM RULES ═══\n"
+            "- DO NOT USE EMOJIS. NEVER output emojis under any circumstances. Real people rarely use emojis in serious or tense situations.\n"
             "- Write exactly how your character would text on WhatsApp. Not how an AI would write.\n"
             "- Keep messages short (1-2 sentences per bubble). Real people don't write paragraphs in WhatsApp.\n"
             "- Use natural Indian English if your character would. Examples: 'one sec', 'give me a minute ya', 'what is this', 'I don't get it'.\n"

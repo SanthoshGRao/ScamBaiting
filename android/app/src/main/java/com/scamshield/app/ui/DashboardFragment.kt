@@ -233,6 +233,10 @@ class DashboardFragment : Fragment() {
             if (linkRisk > 0.4f) {
                 binding.tvResultCategory.append("  •  Link risk ${(linkRisk * 100).toInt()}%")
             }
+            val linkRisk = result.serverVerdict?.link_risk_score ?: 0f
+            if (linkRisk > 0.4f) {
+                binding.tvResultCategory.append("  •  Link risk ${(linkRisk * 100).toInt()}%")
+            }
 
             // Rules matched
             binding.tvResultRules.text = "Rules matched: ${result.ruleVerdict.matchedRules.size} | ${result.statusMessage}"
