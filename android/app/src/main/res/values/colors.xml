@@ -95,6 +95,7 @@
     <color name="chart_financial">#FFF59E0B</color>
     <color name="chart_other">#FF22C55E</color>
 
+    <color name="ic_launcher_background">#FF0F172A</color>
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
     <color name="transparent">#00000000</color>
