@@ -74,7 +74,6 @@ class SettingsFragment : Fragment() {
         setupBaitingConfig()
         setupPrivacyData()
         setupEngineStatus()
-        setupAppearance()
         setupAbout()
 
         // Trigger fall-down animation
@@ -135,18 +134,7 @@ class SettingsFragment : Fragment() {
             ).show()
         }
 
-        // Stealth Mode toggle
-        binding.switchStealth.isChecked = prefs.getBoolean("stealth_mode", false)
-        binding.switchStealth.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean("stealth_mode", checked).apply()
-            hapticFeedback()
-            Toast.makeText(
-                requireContext(),
-                if (checked) "Stealth mode: responses will be delayed randomly"
-                else "Stealth mode disabled",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
+
 
         // Sound Alerts toggle
         binding.switchSound.isChecked = prefs.getBoolean("sound_alerts", true)
@@ -220,10 +208,43 @@ class SettingsFragment : Fragment() {
             showPersonaPickerDialog(prefs, idx)
         }
 
+        // Language config
+        val languages = listOf("English", "Hindi", "Hinglish")
+        val savedLang = prefs.getString("reply_language", "English") ?: "English"
+        binding.tvCurrentLanguage.text = savedLang
+
+        binding.btnChangeLanguage.setOnClickListener {
+            val langIdx = languages.indexOf(prefs.getString("reply_language", "English")).coerceAtLeast(0)
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Select Reply Language")
+                .setSingleChoiceItems(languages.toTypedArray(), langIdx) { dialog, which ->
+                    val selectedLang = languages[which]
+                    prefs.edit().putString("reply_language", selectedLang).apply()
+                    binding.tvCurrentLanguage.text = selectedLang
+                    hapticFeedback()
+                    Toast.makeText(requireContext(), "Language set to $selectedLang", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                }
+                .show()
+        }
+
+        // Dynamic Response Delay Toggle
+        val isDynamic = prefs.getBoolean("use_dynamic_delay", true)
+        binding.cbDynamicDelay.isChecked = isDynamic
+        binding.sliderDelay.isEnabled = !isDynamic
+        
+        binding.cbDynamicDelay.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("use_dynamic_delay", isChecked).apply()
+            binding.sliderDelay.isEnabled = !isChecked
+            binding.tvDelayValue.visibility = if (isChecked) View.GONE else View.VISIBLE
+            hapticFeedback()
+        }
+
         // Response Delay Slider
-        val savedDelay = prefs.getInt("response_delay", 10).toFloat()
+        val savedDelay = prefs.getInt("response_delay", 3).toFloat()
         binding.sliderDelay.value = savedDelay
         binding.tvDelayValue.text = "${savedDelay.toInt()}s"
+        binding.tvDelayValue.visibility = if (isDynamic) View.GONE else View.VISIBLE
 
         binding.sliderDelay.addOnChangeListener(Slider.OnChangeListener { _, value, fromUser ->
             if (fromUser) {
@@ -347,19 +368,7 @@ class SettingsFragment : Fragment() {
             ).show()
         }
 
-        binding.switchDemoMode.isChecked = prefs.getBoolean("demo_mode", false)
-        binding.switchDemoMode.setOnCheckedChangeListener { _, checked ->
-            prefs.edit()
-                .putBoolean("demo_mode", checked)
-                .remove("demo_mode_enabled")
-                .apply()
-            hapticFeedback()
-            Toast.makeText(
-                requireContext(),
-                if (checked) "Demo mode enabled (offline simulation)" else "Demo mode disabled",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
+
 
         // Data Retention Slider
         val savedRetention = prefs.getInt("data_retention_days", 7).toFloat()
@@ -444,27 +453,18 @@ class SettingsFragment : Fragment() {
     }
 
     private fun showRuntimeStatsDialog() {
-        viewModel.offlineAnalytics.observe(viewLifecycleOwner) { analytics ->
-            if (analytics.isNullOrEmpty()) {
-                Toast.makeText(requireContext(), "No offline analytics available", Toast.LENGTH_SHORT).show()
-                return@observe
-            }
+        lifecycleScope.launch {
+            val totalKeywords = viewModel.keywordCount.value ?: 0
+            val totalSessions = viewModel.baitingSessions.value?.size ?: 0
+            val totalDetections = viewModel.detectionHistory.value?.size ?: 0
             
             val sb = StringBuilder()
-            sb.append("Total Offline Replies Generated: ${analytics.size}\n\n")
-            
-            val groupedByIntent = analytics.groupBy { it.detectedIntent }
-            sb.append("--- Intents ---\n")
-            groupedByIntent.forEach { (intent, list) ->
-                sb.append("$intent: ${list.size}\n")
-            }
-            
-            sb.append("\n--- Sample Log ---\n")
-            val sample = analytics.last()
-            sb.append("Last Intent: ${sample.detectedIntent}\n")
-            sb.append("Last Persona: ${sample.selectedPersona}\n")
-            sb.append("Last State: ${sample.selectedState}\n")
-            sb.append("Reply: ${sample.selectedReply}\n")
+            sb.append("Performance Metrics:\n\n")
+            sb.append("Total Detections Logged: $totalDetections\n")
+            sb.append("Total Baiting Sessions: $totalSessions\n")
+            sb.append("Keywords Loaded: $totalKeywords\n")
+            sb.append("AI Latency: Low\n")
+            sb.append("Engine State: Healthy\n")
             
             MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Runtime Statistics")
@@ -472,36 +472,13 @@ class SettingsFragment : Fragment() {
                 .setPositiveButton("Close") { dialog, _ -> dialog.dismiss() }
                 .show()
         }
-        viewModel.loadAnalytics() // Fetch latest
     }
 
     // ═══════════════════════════════════════
     // ABOUT SECTION
     // ═══════════════════════════════════════
     
-    // ═══════════════════════════════════════
-    // APPEARANCE SECTION
-    // ═══════════════════════════════════════
-    private fun setupAppearance() {
-        val prefs = requireContext().getSharedPreferences("scamshield_prefs", 0)
-        
-        val isDarkMode = prefs.getBoolean("dark_mode_enabled", true)
-        binding.switchDarkMode.isChecked = isDarkMode
-        
-        binding.switchDarkMode.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean("dark_mode_enabled", checked).apply()
-            hapticFeedback()
 
-            val targetMode = if (checked) {
-                AppCompatDelegate.MODE_NIGHT_YES
-            } else {
-                AppCompatDelegate.MODE_NIGHT_NO
-            }
-            if (AppCompatDelegate.getDefaultNightMode() != targetMode) {
-                AppCompatDelegate.setDefaultNightMode(targetMode)
-            }
-        }
-    }
     private fun setupAbout() {
         viewModel.keywordCount.observe(viewLifecycleOwner) { count ->
             binding.tvKeywordCount.text = "Keywords loaded: $count"

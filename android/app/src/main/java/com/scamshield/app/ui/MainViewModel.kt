@@ -86,6 +86,21 @@ class MainViewModel @Inject constructor(
     private val _offlineAnalytics = MutableLiveData<List<OfflineAnalyticsEntity>>(emptyList())
     val offlineAnalytics: LiveData<List<OfflineAnalyticsEntity>> = _offlineAnalytics
 
+    init {
+        viewModelScope.launch {
+            cacheDao.observeAll().collect { history ->
+                _detectionHistory.postValue(history)
+                // Fetch updated summary when history changes
+                _analyticsSummary.postValue(detectionRepository.fetchAnalyticsSummary())
+            }
+        }
+        viewModelScope.launch {
+            baitingDao.observeAllSessions().collect { sessions ->
+                _baitingSessions.postValue(sessions)
+            }
+        }
+    }
+
     /**
      * Analyze a message using the full detection pipeline.
      */

@@ -407,9 +407,26 @@ class BaitingAgent:
                 cleaned.append(t)
         return cleaned if cleaned else ["hmm wait"]
 
-    def _compute_part_delays(self, num_parts: int, incoming_len: int) -> list[int]:
-        # For testing purposes, make all cloud replies instant
-        return [0] * num_parts
+    def _compute_part_delays(self, reply_parts: list[str], incoming_len: int, use_dynamic: bool = True, fixed_delay: int = 3) -> list[int]:
+        if not use_dynamic:
+            return [fixed_delay] * len(reply_parts)
+            
+        delays = []
+        # Simulate reading time for the first message (e.g., 1 sec per 30 chars, max 4s)
+        base_read_delay = min(max(incoming_len // 30, 1), 4)
+        
+        for i, part in enumerate(reply_parts):
+            # Simulate typing time: ~1 second per 25 characters, bounded between 2 and 6 seconds
+            typing_delay = min(max(len(part) // 25, 2), 6)
+            
+            if i == 0:
+                # First bubble includes reading time + typing time
+                delays.append(base_read_delay + typing_delay)
+            else:
+                # Subsequent bubbles just include typing time + brief pause (0-1s)
+                delays.append(typing_delay + random.randint(0, 1))
+                
+        return delays
 
     async def generate_reply(
         self, request: BaitingRequest, tracking_url: str | None = None,
@@ -481,8 +498,8 @@ class BaitingAgent:
             "5. Am I asking a question? If I already asked questions in my last 2 replies, make a STATEMENT instead.\n\n"
 
             "═══ QUESTION LIMIT ═══\n"
-            "- You may ask AT MOST 1 question per reply. Not 2, not 3 — ONE or ZERO.\n"
-            "- If your last 2 replies contained questions, this reply MUST be a statement, reaction, or comment — NO questions at all.\n"
+            "- You MUST ask ONE question at most, or simply reply to their question based on the context.\n"
+            "- DO NOT keep asking questions again and again. If you recently asked a question, make a STATEMENT or REACTION instead.\n"
             "- Mix it up: sometimes react ('oh ok'), sometimes comment ('that sounds complicated'), sometimes share something ('my phone has been acting up today').\n"
             "- Real humans don't interrogate — they CONVERSE. Statements, reactions, and short comments are just as natural as questions.\n\n"
 
@@ -514,11 +531,10 @@ class BaitingAgent:
             f"{response_priority}\n"
 
             "═══ OUTPUT FORMAT ═══\n"
-            "Write ONLY the final WhatsApp message(s). Send MAXIMUM 1 or 2 bubbles. NEVER send 3 or more.\n"
-            "If sending 2 bubbles, separate them with |||.\n"
+            "Write ONLY the final WhatsApp message(s). You can send multiple bubbles if natural, but MAXIMUM 3.\n"
+            "If sending multiple bubbles, separate them with |||.\n"
             "Example: 'wait which amount was it again?|||is it 500 or 5000'\n"
-            "CRITICAL: If you send 2 bubbles, they MUST say different things. NEVER repeat the same meaning.\n"
-            "Keep each bubble under 20 words. No XML tags, no reasoning, no metadata — just the raw text message."
+            "No XML tags, no reasoning, no metadata — just the raw text message."
         )
 
         # --- Tracking link injection ---
@@ -561,7 +577,12 @@ class BaitingAgent:
             )
 
             incoming_len = self._incoming_user_chars(request.history)
-            part_delay_seconds = self._compute_part_delays(len(reply_parts), incoming_len)
+            part_delay_seconds = self._compute_part_delays(
+                reply_parts, 
+                incoming_len, 
+                use_dynamic=request.use_dynamic_delay, 
+                fixed_delay=request.fixed_delay_seconds
+            )
             response_delay_seconds = part_delay_seconds[0] if part_delay_seconds else 3
 
             return BaitingResponse(
@@ -580,7 +601,12 @@ class BaitingAgent:
         except Exception as e:
             logger.error("Baiting agent error for session=%s: %s", session_id, e)
             fb_parts = ["wait what", "my app glitched"]
-            delays = self._compute_part_delays(len(fb_parts), 0)
+            delays = self._compute_part_delays(
+                fb_parts, 
+                0, 
+                use_dynamic=request.use_dynamic_delay, 
+                fixed_delay=request.fixed_delay_seconds
+            )
             return BaitingResponse(
                 reply_text="wait what my app glitched",
                 reply_parts=fb_parts,

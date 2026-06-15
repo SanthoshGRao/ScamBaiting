@@ -81,7 +81,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_notification"
-                        app:tint="@color/accent"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Notification" />
 
@@ -161,6 +161,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        app:trackDecorationTint="@android:color/transparent"
                         android:id="@+id/switchPrivacy"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
@@ -204,53 +205,12 @@
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        app:trackDecorationTint="@android:color/transparent"
                         android:id="@+id/switchAutoBait"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
                 </LinearLayout>
 
-                <!-- Stealth Mode Toggle -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="14dp">
-
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:src="@drawable/ic_stealth"
-                        app:tint="@color/persona_analyst"
-                        android:layout_marginEnd="14dp"
-                        android:contentDescription="Stealth" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_stealth"
-                            android:textSize="15sp"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_stealth_desc"
-                            android:textSize="12sp"
-                            android:textColor="@color/text_hint" />
-                    </LinearLayout>
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/switchStealth"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
 
                 <!-- Sound Alerts Toggle -->
                 <LinearLayout
@@ -264,7 +224,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_sound"
-                        app:tint="@color/persona_uncle"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Sound" />
 
@@ -290,6 +250,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        app:trackDecorationTint="@android:color/transparent"
                         android:id="@+id/switchSound"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
@@ -333,6 +294,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        app:trackDecorationTint="@android:color/transparent"
                         android:id="@+id/switchVibrate"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
@@ -350,7 +312,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_warning"
-                        app:tint="@color/risk_high"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Overlay" />
 
@@ -376,6 +338,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        app:trackDecorationTint="@android:color/transparent"
                         android:id="@+id/switchOverlay"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
@@ -461,10 +424,13 @@
                     android:valueTo="10"
                     android:stepSize="1"
                     android:value="5"
+                    app:trackHeight="4dp"
+                    app:thumbRadius="8dp"
+                    app:tickVisible="false"
                     app:trackColorActive="@color/primary"
                     app:trackColorInactive="@color/slider_track"
                     app:thumbColor="@color/primary"
-                    app:haloColor="@color/primary_30"
+                    app:haloColor="@color/primary_10"
                     android:layout_marginBottom="10dp" />
 
                 <View
@@ -485,7 +451,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_chart"
-                        app:tint="@color/accent"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Threshold" />
 
@@ -517,7 +483,7 @@
                         android:text="60%"
                         android:textSize="14sp"
                         android:textStyle="bold"
-                        android:textColor="@color/accent" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
 
                 <com.google.android.material.slider.Slider
@@ -528,10 +494,13 @@
                     android:valueTo="100"
                     android:stepSize="5"
                     android:value="60"
-                    app:trackColorActive="@color/accent"
+                    app:trackHeight="4dp"
+                    app:thumbRadius="8dp"
+                    app:tickVisible="false"
+                    app:trackColorActive="@color/primary"
                     app:trackColorInactive="@color/slider_track"
-                    app:thumbColor="@color/accent"
-                    app:haloColor="@color/risk_safe_bg" />
+                    app:thumbColor="@color/primary"
+                    app:haloColor="@color/primary_10" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -575,7 +544,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_persona"
-                        app:tint="@color/persona_uncle"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Persona" />
 
@@ -621,6 +590,69 @@
                     android:background="@color/divider"
                     android:layout_marginBottom="14dp" />
 
+                <!-- Language Selector -->
+                <LinearLayout
+                    android:id="@+id/languageRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="14dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="2dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:src="@drawable/ic_chat"
+                        app:tint="@color/primary"
+                        android:layout_marginEnd="14dp"
+                        android:contentDescription="Language" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Reply Language"
+                            android:textSize="15sp"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:id="@+id/tvCurrentLanguage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="English"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/primary" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnChangeLanguage"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="Change"
+                        android:textSize="12sp"
+                        android:textAllCaps="false"
+                        app:icon="@drawable/ic_chevron_right"
+                        app:iconGravity="end"
+                        app:iconSize="16dp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/divider"
+                    android:layout_marginBottom="14dp" />
+
                 <!-- Response Delay Slider -->
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -633,7 +665,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_timer"
-                        app:tint="@color/persona_slow"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Delay" />
 
@@ -657,6 +689,15 @@
                             android:textSize="12sp"
                             android:textColor="@color/text_hint" />
                     </LinearLayout>
+                    
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbDynamicDelay"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Dynamic"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginEnd="8dp" />
 
                     <TextView
                         android:id="@+id/tvDelayValue"
@@ -665,7 +706,7 @@
                         android:text="10s"
                         android:textSize="14sp"
                         android:textStyle="bold"
-                        android:textColor="@color/persona_slow" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
 
                 <com.google.android.material.slider.Slider
@@ -676,10 +717,13 @@
                     android:valueTo="30"
                     android:stepSize="1"
                     android:value="10"
-                    app:trackColorActive="@color/persona_slow"
+                    app:trackHeight="4dp"
+                    app:thumbRadius="8dp"
+                    app:tickVisible="false"
+                    app:trackColorActive="@color/primary"
                     app:trackColorInactive="@color/slider_track"
-                    app:thumbColor="@color/persona_slow"
-                    app:haloColor="@color/risk_safe_bg"
+                    app:thumbColor="@color/primary"
+                    app:haloColor="@color/primary_10"
                     android:layout_marginBottom="10dp" />
 
                 <View
@@ -732,7 +776,7 @@
                         android:text="10 replies"
                         android:textSize="14sp"
                         android:textStyle="bold"
-                        android:textColor="@color/persona_victim" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
 
                 <com.google.android.material.slider.Slider
@@ -743,10 +787,13 @@
                     android:valueTo="20"
                     android:stepSize="1"
                     android:value="10"
-                    app:trackColorActive="@color/persona_victim"
+                    app:trackHeight="4dp"
+                    app:thumbRadius="8dp"
+                    app:tickVisible="false"
+                    app:trackColorActive="@color/primary"
                     app:trackColorInactive="@color/slider_track"
-                    app:thumbColor="@color/persona_victim"
-                    app:haloColor="@color/risk_high_bg"
+                    app:thumbColor="@color/primary"
+                    app:haloColor="@color/primary_10"
                     android:layout_marginBottom="14dp" />
 
                 <View
@@ -792,6 +839,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        app:trackDecorationTint="@android:color/transparent"
                         android:id="@+id/switchAutoReport"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
@@ -834,7 +882,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_privacy"
-                        app:tint="@color/accent"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Privacy" />
 
@@ -860,6 +908,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        app:trackDecorationTint="@android:color/transparent"
                         android:id="@+id/switchOnDevice"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
@@ -872,53 +921,13 @@
                     android:layout_height="wrap_content"
                     android:text="@string/privacy_badge_off"
                     android:textSize="12sp"
-                    android:textColor="@color/accent"
+                    android:textColor="@color/primary"
                     android:background="@drawable/bg_reason_chip"
                     android:paddingHorizontal="12dp"
                     android:paddingVertical="4dp"
                     android:layout_marginBottom="14dp" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="14dp">
 
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:src="@drawable/ic_warning"
-                        app:tint="@color/risk_medium"
-                        android:layout_marginEnd="14dp"
-                        android:contentDescription="Demo Mode" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Demo Mode"
-                            android:textSize="15sp"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Use local simulation messages without backend dependency"
-                            android:textSize="12sp"
-                            android:textColor="@color/text_hint" />
-                    </LinearLayout>
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/switchDemoMode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
 
                 <View
                     android:layout_width="match_parent"
@@ -938,7 +947,7 @@
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_data"
-                        app:tint="@color/persona_analyst"
+                        app:tint="@color/primary"
                         android:layout_marginEnd="14dp"
                         android:contentDescription="Retention" />
 
@@ -970,7 +979,7 @@
                         android:text="7 days"
                         android:textSize="14sp"
                         android:textStyle="bold"
-                        android:textColor="@color/persona_analyst" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
 
                 <com.google.android.material.slider.Slider
@@ -981,9 +990,12 @@
                     android:valueTo="30"
                     android:stepSize="1"
                     android:value="7"
-                    app:trackColorActive="@color/persona_analyst"
+                    app:trackHeight="4dp"
+                    app:thumbRadius="8dp"
+                    app:tickVisible="false"
+                    app:trackColorActive="@color/primary"
                     app:trackColorInactive="@color/slider_track"
-                    app:thumbColor="@color/persona_analyst"
+                    app:thumbColor="@color/primary"
                     app:haloColor="@color/primary_10"
                     android:layout_marginBottom="14dp" />
 
@@ -1036,72 +1048,7 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- ═══════════════════════════════════════ -->
-        <!-- 🎨 SECTION: APPEARANCE                 -->
-        <!-- ═══════════════════════════════════════ -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            style="@style/ScamShield.SectionHeader"
-            android:text="@string/settings_appearance" />
 
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            android:layout_marginBottom="14dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
-
-                <!-- Dark Theme Toggle -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:src="@drawable/ic_dashboard"
-                        app:tint="@color/primary"
-                        android:layout_marginEnd="14dp"
-                        android:contentDescription="Theme" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_dark_mode"
-                            android:textSize="15sp"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_dark_mode_desc"
-                            android:textSize="12sp"
-                            android:textColor="@color/text_hint" />
-                    </LinearLayout>
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/switchDarkMode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
         <!-- ═══════════════════════════════════════ -->
         <!-- ⚙️ SECTION: ENGINE STATUS                -->
@@ -1159,10 +1106,13 @@
                             android:id="@+id/tvEngineBadge"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="🟢 Online"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/risk_safe" />
+                            android:text="Online"
+                            android:textSize="12sp"
+                            android:textColor="@color/risk_safe"
+                            android:background="@drawable/bg_reason_chip"
+                            android:paddingHorizontal="14dp"
+                            android:paddingVertical="6dp"
+                            android:layout_marginTop="6dp" />
                     </LinearLayout>
                 </LinearLayout>
 

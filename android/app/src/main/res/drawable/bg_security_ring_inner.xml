@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
-    <solid android:color="@color/ring_glow" />
+    <gradient
+        android:startColor="#401E90FF"
+        android:centerColor="#401E90FF"
+        android:endColor="#0007152F"
+        android:gradientRadius="90dp"
+        android:type="radial" />
     <stroke
         android:width="3dp"
-        android:color="@color/ring_active" />
+        android:color="#FF1E90FF" />
 </shape>

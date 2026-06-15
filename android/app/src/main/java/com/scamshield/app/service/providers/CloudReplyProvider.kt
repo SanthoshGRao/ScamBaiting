@@ -19,9 +19,12 @@ import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.withTimeoutOrNull
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Singleton
 class CloudReplyProvider @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val apiService: DetectionApiService,
     private val baitingDao: BaitingDao
 ) : BaitingReplyProvider {
@@ -81,6 +84,10 @@ class CloudReplyProvider @Inject constructor(
             )
         }
 
+        val prefs = context.getSharedPreferences("scamshield_prefs", 0)
+        val useDynamicDelay = prefs.getBoolean("use_dynamic_delay", true)
+        val fixedDelay = prefs.getInt("response_delay", 3)
+
         val request = BaitingRequestDto(
             sender_id = session.senderId,
             session_id = session.senderId,
@@ -104,7 +111,9 @@ class CloudReplyProvider @Inject constructor(
                 KnownIntelligenceDto(it.itemType, it.value, it.confidence)
             },
             history = history.map { ChatMessageDto(role = it.role, content = it.content) },
-            offline_analytics = syncDtos
+            offline_analytics = syncDtos,
+            use_dynamic_delay = useDynamicDelay,
+            fixed_delay_seconds = fixedDelay
         )
 
         var response = apiService.generateBaitingReply("Bearer $token", request)

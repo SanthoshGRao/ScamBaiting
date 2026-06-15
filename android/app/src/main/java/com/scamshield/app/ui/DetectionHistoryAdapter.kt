@@ -14,7 +14,9 @@ import com.scamshield.app.util.formatCategoryLabel
 /**
  * RecyclerView adapter for detection history items in the Analytics tab.
  */
-class DetectionHistoryAdapter : ListAdapter<DetectionCacheEntity, DetectionHistoryAdapter.ViewHolder>(DiffCallback()) {
+class DetectionHistoryAdapter(
+    private val onFeedbackClick: (String, Boolean) -> Unit
+) : ListAdapter<DetectionCacheEntity, DetectionHistoryAdapter.ViewHolder>(DiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ItemDetectionHistoryBinding.inflate(
@@ -62,6 +64,16 @@ class DetectionHistoryAdapter : ListAdapter<DetectionCacheEntity, DetectionHisto
                 .setDuration(300)
                 .setStartDelay((bindingAdapterPosition * 50).toLong())
                 .start()
+
+            binding.btnMarkSafeItem.setOnClickListener {
+                onFeedbackClick(item.messageHash, false)
+                binding.layoutFeedbackHistory.visibility = android.view.View.GONE
+            }
+            
+            binding.btnMarkScamItem.setOnClickListener {
+                onFeedbackClick(item.messageHash, true)
+                binding.layoutFeedbackHistory.visibility = android.view.View.GONE
+            }
         }
     }
 

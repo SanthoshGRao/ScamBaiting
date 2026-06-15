@@ -22,6 +22,9 @@ abstract class BaitingDao {
     @Query("SELECT * FROM baiting_sessions ORDER BY startTime DESC")
     abstract suspend fun getAllSessions(): List<BaitingSessionEntity>
 
+    @Query("SELECT * FROM baiting_sessions ORDER BY startTime DESC")
+    abstract fun observeAllSessions(): kotlinx.coroutines.flow.Flow<List<BaitingSessionEntity>>
+
     @Query("UPDATE baiting_sessions SET isActive = 0 WHERE senderId = :senderId")
     abstract suspend fun endSession(senderId: String)
 

@@ -86,6 +86,9 @@ class BaitingManager @Inject constructor(
      */
     private val replyTimeMultiplier: Float
         get() {
+            val useDynamic = prefs.getBoolean("use_dynamic_delay", true)
+            if (!useDynamic) return 1f
+            
             val delaySec = prefs.getInt("response_delay", DEFAULT_RESPONSE_DELAY_SEC)
             return delaySec.toFloat() / DEFAULT_RESPONSE_DELAY_SEC.toFloat()
         }
@@ -391,12 +394,17 @@ class BaitingManager @Inject constructor(
      * @param scammerUserTurns Number of inbound scammer messages in this thread (1 = first contact).
      */
     private fun calculateTypingDelay(messageLength: Int, partIndex: Int, scammerUserTurns: Int): Long {
+        val useDynamic = prefs.getBoolean("use_dynamic_delay", true)
+        if (!useDynamic) {
+            return if (partIndex == 0) prefs.getInt("response_delay", DEFAULT_RESPONSE_DELAY_SEC) * 1000L else 1500L
+        }
+
         // Follow-up bubbles often typed faster after the "thinking" pause.
         val charMs = if (partIndex > 0) minOf(CHAR_DELAY_MS, 42L) else CHAR_DELAY_MS
         val baseTypingMs = messageLength * charMs
         val randomJitter = (800L..2500L).random()
         val responseDelaySetting =
-            if (partIndex == 0) prefs.getInt("response_delay", DEFAULT_RESPONSE_DELAY_SEC) * 1000L else 0L
+            if (partIndex == 0) prefs.getInt("response_delay", 3) * 1000L else 0L
 
         // After the first scammer message, first bubble of each new reply should feel less "instant".
         val followUpTypingBoost = if (partIndex == 0 && scammerUserTurns >= 2) {

@@ -4,17 +4,24 @@ import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import com.scamshield.app.R
+import kotlin.math.min
 
 /**
- * Animated circular security monitor — UI only, no business logic.
+ * Canvas-rendered security monitor with a quiet protection heartbeat.
  */
 class SecurityMonitorView @JvmOverloads constructor(
     context: Context,
@@ -24,98 +31,148 @@ class SecurityMonitorView @JvmOverloads constructor(
 
     enum class State { INACTIVE, PROTECTED, SCANNING, THREAT }
 
-    private val ringOuterContainer: View
-    private val ringMiddleContainer: View
-    private val ringInner: View
-    private val ringGlow: View
     private val shieldIcon: ImageView
 
-    private var rotateOuter: ObjectAnimator? = null
-    private var rotateMiddle: ObjectAnimator? = null
-    private var pulseAnimator: ObjectAnimator? = null
-    private var currentState = State.INACTIVE
-
-    private var shieldBreathingAnimator: ObjectAnimator? = null
-    private var particleAnimator: ValueAnimator? = null
-    private var lastTime = 0L
-
-    private val particlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        style = android.graphics.Paint.Style.FILL
+    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
     }
+    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val pulsePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 
-    private data class Particle(
-        var angle: Float,
-        val radiusOffset: Float, // Added to base radius
-        val color: Int,
-        val speed: Float, // degrees per sec
-        val size: Float,
-        val trailLength: Float
-    )
+    private var currentState = State.INACTIVE
+    private var frameAnimator: ValueAnimator? = null
+    private var shieldBreathingAnimator: ObjectAnimator? = null
+    private var startTimeMs = 0L
+    private var baseGlowAlpha = 0.05f
 
-    private val particles = mutableListOf<Particle>()
+    private val density = resources.displayMetrics.density
+    private fun dp(value: Float) = value * density
 
     init {
         LayoutInflater.from(context).inflate(R.layout.view_security_monitor, this, true)
-        ringOuterContainer = findViewById(R.id.ringOuterContainer)
-        ringMiddleContainer = findViewById(R.id.ringMiddleContainer)
-        ringInner = findViewById(R.id.ringInner)
-        ringGlow = findViewById(R.id.ringGlow)
         shieldIcon = findViewById(R.id.ivShieldCenter)
         clipChildren = false
         clipToPadding = false
         setWillNotDraw(false)
-        initParticles()
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         setState(State.INACTIVE)
     }
 
-    private fun initParticles() {
-        val blue = ContextCompat.getColor(context, R.color.primary_light)
-        val cyan = ContextCompat.getColor(context, R.color.accent_light)
-        particles.addAll(listOf(
-            Particle(0f, 40f, blue, 60f, 10f, 60f),
-            Particle(120f, -20f, cyan, -45f, 8f, 40f),
-            Particle(240f, 50f, blue, 50f, 12f, 50f)
-        ))
-    }
-
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val size = MeasureSpec.getSize(widthMeasureSpec)
-        val squareMeasureSpec = MeasureSpec.makeMeasureSpec(size, MeasureSpec.EXACTLY)
-        super.onMeasure(squareMeasureSpec, squareMeasureSpec)
+        val width = MeasureSpec.getSize(widthMeasureSpec)
+        val height = MeasureSpec.getSize(heightMeasureSpec)
+        val fallback = resources.getDimensionPixelSize(R.dimen.security_ring_size)
+        val size = when {
+            width > 0 && height > 0 -> min(width, height)
+            width > 0 -> width
+            height > 0 -> height
+            else -> fallback
+        }
+        val squareSpec = MeasureSpec.makeMeasureSpec(size, MeasureSpec.EXACTLY)
+        super.onMeasure(squareSpec, squareSpec)
     }
 
-    override fun dispatchDraw(canvas: android.graphics.Canvas) {
-        super.dispatchDraw(canvas)
-        if (currentState == State.INACTIVE) return
-
-        val now = System.currentTimeMillis()
-        if (lastTime == 0L) lastTime = now
-        val dt = (now - lastTime) / 1000f
-        lastTime = now
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val size = min(width, height).toFloat()
+        if (size <= 0f) return
 
         val cx = width / 2f
         val cy = height / 2f
-        val baseRadius = width / 3f
+        val elapsedMs = if (startTimeMs == 0L) 0L else System.currentTimeMillis() - startTimeMs
+        val ringRadius = size * 0.38f
+        val innerRadius = size * 0.17f
+        val active = currentState != State.INACTIVE
+        val pulseProgress = getPulseProgress(elapsedMs)
 
-        for (p in particles) {
-            p.angle = (p.angle + p.speed * dt) % 360f
-            val r = baseRadius + p.radiusOffset
+        drawRadialGlow(canvas, cx, cy, size, active, pulseProgress)
+        drawInnerGlow(canvas, cx, cy, innerRadius)
+        drawProtectionRing(canvas, cx, cy, ringRadius, active, pulseProgress)
+        if (active && pulseProgress != null) drawHeartbeatPulse(canvas, cx, cy, size, pulseProgress)
+        drawCenterPlate(canvas, cx, cy, size * 0.18f)
+    }
 
-            // Draw trail
-            val steps = 20
-            for (i in 0 until steps) {
-                val trailAngle = p.angle - (p.speed / kotlin.math.abs(p.speed)) * (p.trailLength * i / steps)
-                val rad = Math.toRadians(trailAngle.toDouble())
-                val tx = cx + r * kotlin.math.cos(rad).toFloat()
-                val ty = cy + r * kotlin.math.sin(rad).toFloat()
-                
-                val alpha = (255 * (1f - i / steps.toFloat())).toInt()
-                particlePaint.color = p.color
-                particlePaint.alpha = alpha
-                val size = p.size * (1f - i / steps.toFloat())
-                canvas.drawCircle(tx, ty, size, particlePaint)
-            }
+    private fun drawRadialGlow(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        size: Float,
+        active: Boolean,
+        pulseProgress: Float?,
+    ) {
+        val pulseBoost = if (active && pulseProgress != null) {
+            baseGlowAlpha * 0.1f * kotlin.math.sin(Math.PI * pulseProgress).toFloat().coerceAtLeast(0f)
+        } else {
+            0f
         }
+        val alpha = if (active) baseGlowAlpha + pulseBoost else 0.025f
+        glowPaint.shader = RadialGradient(
+            cx,
+            cy,
+            size * 0.22f,
+            intArrayOf(withAlpha(Color.parseColor("#FF1E90FF"), (alpha * 255).toInt()), Color.TRANSPARENT),
+            floatArrayOf(0f, 0.95f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, size * 0.22f, glowPaint)
+        glowPaint.shader = null
+    }
+
+    private fun drawInnerGlow(canvas: Canvas, cx: Float, cy: Float, radius: Float) {
+        fillPaint.shader = RadialGradient(
+            cx,
+            cy,
+            radius,
+            intArrayOf(Color.parseColor("#101E90FF"), Color.TRANSPARENT),
+            floatArrayOf(0f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, radius, fillPaint)
+        fillPaint.shader = null
+    }
+
+    private fun drawProtectionRing(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        radius: Float,
+        active: Boolean,
+        pulseProgress: Float?,
+    ) {
+        val heartbeat = if (active && pulseProgress != null) {
+            kotlin.math.sin(Math.PI * pulseProgress).toFloat().coerceAtLeast(0f)
+        } else {
+            0f
+        }
+        ringPaint.strokeWidth = dp(3f)
+        ringPaint.maskFilter = null
+        ringPaint.color = withAlpha(Color.parseColor("#FF1E90FF"), (46 + 20 * heartbeat).toInt())
+        canvas.drawCircle(cx, cy, radius, ringPaint)
+    }
+
+    private fun drawHeartbeatPulse(canvas: Canvas, cx: Float, cy: Float, size: Float, progress: Float) {
+        val eased = 1f - (1f - progress) * (1f - progress)
+        val radius = size * (0.2f + 0.2f * eased)
+        val alpha = (31 * (1f - eased)).toInt()
+        pulsePaint.strokeWidth = dp(2f)
+        pulsePaint.color = withAlpha(Color.parseColor("#FF1E90FF"), alpha)
+        pulsePaint.maskFilter = null
+        canvas.drawCircle(cx, cy, radius, pulsePaint)
+    }
+
+    private fun drawCenterPlate(canvas: Canvas, cx: Float, cy: Float, radius: Float) {
+        fillPaint.shader = RadialGradient(
+            cx,
+            cy,
+            radius,
+            intArrayOf(Color.parseColor("#101E90FF"), Color.parseColor("#0307152F")),
+            floatArrayOf(0f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawCircle(cx, cy, radius, fillPaint)
+        fillPaint.shader = null
     }
 
     fun setState(state: State) {
@@ -126,130 +183,79 @@ class SecurityMonitorView @JvmOverloads constructor(
 
         when (state) {
             State.INACTIVE -> applyInactive()
-            State.PROTECTED -> applyProtected()
-            State.SCANNING -> applyScanning()
+            State.PROTECTED -> applyActive(R.color.primary)
+            State.SCANNING -> applyActive(R.color.accent)
             State.THREAT -> {
-                applyThreat()
+                applyActive(R.color.risk_high)
                 if (!wasThreat) playThreatShake()
             }
         }
+        invalidate()
     }
 
     private fun applyInactive() {
-        ringGlow.alpha = 0.1f
-        ringInner.alpha = 0.2f
+        baseGlowAlpha = 0.025f
+        shieldIcon.scaleX = 1f
+        shieldIcon.scaleY = 1f
         shieldIcon.setColorFilter(ContextCompat.getColor(context, R.color.ring_inactive))
-        ringOuterContainer.rotation = 0f
-        ringMiddleContainer.rotation = 0f
     }
 
-    private fun applyProtected() {
-        // Futuristic intense glows
-        ringGlow.alpha = 0.6f
-        ringInner.alpha = 0.9f
-        shieldIcon.setColorFilter(ContextCompat.getColor(context, R.color.primary))
-        startRotation(ringOuterContainer, 14_000L, clockwise = true)
-        startRotation(ringMiddleContainer, 10_000L, clockwise = false)
-        startPulse()
+    private fun applyActive(iconColor: Int) {
+        shieldIcon.setColorFilter(ContextCompat.getColor(context, iconColor))
+        baseGlowAlpha = 0.05f
+        startTimeMs = System.currentTimeMillis()
+        startFrameLoop()
         startShieldBreathing()
-        startParticleEngine()
     }
 
-    private fun applyScanning() {
-        ringGlow.alpha = 0.8f
-        ringInner.alpha = 1f
-        shieldIcon.setColorFilter(ContextCompat.getColor(context, R.color.accent))
-        startRotation(ringOuterContainer, 3_000L, clockwise = true)
-        startRotation(ringMiddleContainer, 2_000L, clockwise = false)
-        startParticleEngine()
-        val sweep = ObjectAnimator.ofFloat(ringGlow, View.ROTATION, 0f, 360f).apply {
-            duration = 2_000L
+    private fun startFrameLoop() {
+        frameAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 3000L
             repeatCount = ValueAnimator.INFINITE
             interpolator = LinearInterpolator()
-        }
-        sweep.start()
-    }
-
-    private fun applyThreat() {
-        ringGlow.alpha = 0.9f
-        ringInner.alpha = 1f
-        shieldIcon.setColorFilter(ContextCompat.getColor(context, R.color.risk_high))
-        startRotation(ringOuterContainer, 6_000L, clockwise = true)
-        startPulse(fast = true)
-        startShieldBreathing()
-        startParticleEngine()
-    }
-
-    private fun startParticleEngine() {
-        lastTime = System.currentTimeMillis()
-        particleAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 1000
-            repeatCount = ValueAnimator.INFINITE
             addUpdateListener { invalidate() }
             start()
         }
     }
 
     private fun startShieldBreathing() {
-        val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 0.98f, 1.02f, 0.98f)
-        val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.98f, 1.02f, 0.98f)
+        val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.01f, 1f)
+        val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.01f, 1f)
         shieldBreathingAnimator = ObjectAnimator.ofPropertyValuesHolder(shieldIcon, scaleX, scaleY).apply {
-            duration = 3000L
+            duration = 4000L
             repeatCount = ValueAnimator.INFINITE
-            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-            start()
-        }
-    }
-
-    private fun startRotation(view: View, durationMs: Long, clockwise: Boolean) {
-        val animator = ObjectAnimator.ofFloat(
-            view,
-            View.ROTATION,
-            0f,
-            if (clockwise) 360f else -360f,
-        ).apply {
-            duration = durationMs
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = LinearInterpolator()
-        }
-        animator.start()
-        if (view === ringOuterContainer) rotateOuter = animator else rotateMiddle = animator
-    }
-
-    private fun startPulse(fast: Boolean = false) {
-        val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, if (fast) 1.25f else 1.15f, 1f)
-        val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, if (fast) 1.25f else 1.15f, 1f)
-        val alpha = PropertyValuesHolder.ofFloat(View.ALPHA, 0.3f, 0.8f, 0.3f)
-        pulseAnimator = ObjectAnimator.ofPropertyValuesHolder(ringGlow, scaleX, scaleY, alpha).apply {
-            this.duration = if (fast) 800L else 2_500L
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            interpolator = AccelerateDecelerateInterpolator()
             start()
         }
     }
 
     private fun playThreatShake() {
         ObjectAnimator.ofFloat(this, TRANSLATION_X, 0f, -12f, 12f, -6f, 6f, 0f).apply {
-            duration = 400
+            duration = 400L
             start()
         }
     }
 
     private fun stopAnimations() {
-        rotateOuter?.cancel()
-        rotateMiddle?.cancel()
-        pulseAnimator?.cancel()
+        frameAnimator?.cancel()
         shieldBreathingAnimator?.cancel()
-        particleAnimator?.cancel()
-        rotateOuter = null
-        rotateMiddle = null
-        pulseAnimator = null
+        frameAnimator = null
         shieldBreathingAnimator = null
-        particleAnimator = null
+        ringPaint.maskFilter = null
+        pulsePaint.maskFilter = null
     }
 
     override fun onDetachedFromWindow() {
         stopAnimations()
         super.onDetachedFromWindow()
+    }
+
+    private fun getPulseProgress(elapsedMs: Long): Float? {
+        val cycleMs = elapsedMs % 3000L
+        return if (cycleMs <= 800L) cycleMs / 800f else null
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return (color and 0x00FFFFFF) or ((alpha.coerceIn(0, 255)) shl 24)
     }
 }

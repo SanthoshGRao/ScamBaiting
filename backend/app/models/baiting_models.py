@@ -28,6 +28,8 @@ class BaitingRequest(BaseModel):
     goal: str = Field(default="waste_time", description="Goal: waste_time or extract_information")
     history: List[ChatMessage] = Field(..., description="Conversation history including latest message")
     offline_analytics: List[OfflineAnalyticsSyncDto] = Field(default_factory=list, description="Offline analytics events to sync")
+    use_dynamic_delay: bool = Field(default=True, description="Compute delays dynamically based on length")
+    fixed_delay_seconds: int = Field(default=3, description="Fixed delay to use if use_dynamic_delay is False")
 
 class BaitingResponse(BaseModel):
     """Generated response to send to the scammer."""

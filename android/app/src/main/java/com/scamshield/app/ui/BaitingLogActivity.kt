@@ -59,9 +59,18 @@ class BaitingLogActivity : AppCompatActivity() {
                 "Persona: ${session?.persona ?: "unknown"}  •  Goal: Wasting scammer time"
             
             baitingDao.observeMessagesForSender(senderId).collect { msgs ->
-                adapter.submitList(msgs)
-                if (msgs.isNotEmpty()) {
-                    findViewById<RecyclerView>(R.id.rvMessages).scrollToPosition(msgs.size - 1)
+                // Filter out consecutive duplicate messages (same role and content)
+                val distinctMsgs = mutableListOf<BaitingMessageEntity>()
+                var lastMsg: BaitingMessageEntity? = null
+                for (msg in msgs) {
+                    if (lastMsg == null || msg.role != lastMsg.role || msg.content != lastMsg.content) {
+                        distinctMsgs.add(msg)
+                    }
+                    lastMsg = msg
+                }
+                adapter.submitList(distinctMsgs)
+                if (distinctMsgs.isNotEmpty()) {
+                    findViewById<RecyclerView>(R.id.rvMessages).scrollToPosition(distinctMsgs.size - 1)
                 }
             }
         }

@@ -113,6 +113,9 @@ interface DetectionCacheDao {
     @Query("SELECT * FROM detection_cache ORDER BY timestamp DESC")
     suspend fun getAll(): List<DetectionCacheEntity>
 
+    @Query("SELECT * FROM detection_cache ORDER BY timestamp DESC")
+    fun observeAll(): Flow<List<DetectionCacheEntity>>
+
     @Query("DELETE FROM detection_cache")
     suspend fun clearAll()
 }

@@ -80,8 +80,10 @@
 
     <style name="ScamShield.Card.Hero" parent="ScamShield.Card">
         <item name="cardBackgroundColor">@color/card_elevated</item>
+        <item name="cardCornerRadius">@dimen/hero_card_radius</item>
         <item name="cardElevation">6dp</item>
-        <item name="strokeWidth">0dp</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="strokeColor">@color/card_stroke</item>
     </style>
 
     <style name="ScamShield.Card.Compact" parent="ScamShield.Card">
@@ -90,7 +92,7 @@
     </style>
 
     <style name="ScamShield.Card.Stat" parent="ScamShield.Card">
-        <item name="cardCornerRadius">@dimen/card_radius_compact</item>
+        <item name="cardCornerRadius">20dp</item>
         <item name="cardElevation">3dp</item>
     </style>
 

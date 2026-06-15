@@ -3,7 +3,6 @@ package com.scamshield.app.ui
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -34,8 +33,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_POST_NOTIFICATIONS = 101
         private const val REQUEST_SMS_PERMISSIONS = 102
-        private const val PREFS_NAME = "scamshield_prefs"
-        private const val PREF_MIUI_SURVIVAL_PROMPT_SHOWN = "miui_survival_prompt_shown"
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -65,6 +62,8 @@ class MainActivity : AppCompatActivity() {
                 syncBottomNavToTag(activeFragmentTag)
             }
         }
+
+        promptForBackgroundSurvivalIfNeeded()
     }
 
     private fun applySystemBarAppearance() {
@@ -77,31 +76,34 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         NotificationListenerReviver.pingFromUi(this)
         ProtectionKeepAliveService.start(this)
-        promptForBackgroundSurvivalIfNeeded()
     }
 
     private fun promptForBackgroundSurvivalIfNeeded() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isXiaomiDevice = Build.MANUFACTURER.equals("xiaomi", ignoreCase = true) ||
             Build.BRAND.equals("xiaomi", ignoreCase = true) ||
             Build.BRAND.equals("redmi", ignoreCase = true) ||
             Build.BRAND.equals("poco", ignoreCase = true)
         val ignoringBattery = isIgnoringBatteryOptimizations()
 
-        if (!isXiaomiDevice && ignoringBattery) return
-        if (prefs.getBoolean(PREF_MIUI_SURVIVAL_PROMPT_SHOWN, false)) return
+        if (ignoringBattery) return
 
-        prefs.edit().putBoolean(PREF_MIUI_SURVIVAL_PROMPT_SHOWN, true).apply()
-
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Keep ScamShield running")
             .setMessage(
-                "This phone can stop ScamShield after closing the app. Allow unrestricted battery usage and, on Xiaomi/MIUI, enable AutoStart and lock ScamShield in Recents."
+                if (isXiaomiDevice) {
+                    "This phone can stop ScamShield after closing the app. Allow unrestricted battery usage and, on Xiaomi/MIUI, enable AutoStart and lock ScamShield in Recents."
+                } else {
+                    "Allow unrestricted battery usage so ScamShield can keep monitoring incoming messages after you close the app."
+                }
             )
             .setPositiveButton("Battery settings") { _, _ -> openBatteryOptimizationSettings() }
-            .setNegativeButton("MIUI AutoStart") { _, _ -> openMiuiAutostartSettings() }
             .setNeutralButton("Later", null)
-            .show()
+
+        if (isXiaomiDevice) {
+            dialog.setNegativeButton("MIUI AutoStart") { _, _ -> openMiuiAutostartSettings() }
+        }
+
+        dialog.show()
     }
 
     private fun isIgnoringBatteryOptimizations(): Boolean {

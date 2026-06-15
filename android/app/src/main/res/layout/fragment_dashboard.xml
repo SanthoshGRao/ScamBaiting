@@ -53,42 +53,59 @@
                     android:textColor="@color/text_hint" />
             </LinearLayout>
 
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@drawable/ic_notification"
-                app:tint="@color/text_primary" />
+            <LinearLayout
+                android:id="@+id/layoutNotificationAccessIndicator"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center">
+
+                <TextView
+                    android:id="@+id/tvNotificationStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_reason_chip"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="4dp"
+                    android:text="OFFLINE"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Security hero card -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardHero"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:stateListAnimator="@animator/scale_press"
             android:clickable="true"
             android:focusable="true"
             style="@style/ScamShield.Card.Hero"
+            app:cardBackgroundColor="@color/transparent"
             android:layout_marginBottom="@dimen/card_spacing">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="20dp">
+                android:background="@drawable/bg_hero_card_glass"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:padding="28dp">
 
                 <com.scamshield.app.ui.widget.SecurityMonitorView
                     android:id="@+id/securityMonitor"
-                    android:layout_width="0dp"
-                    android:layout_weight="0.4"
+                    android:layout_width="@dimen/security_ring_size"
                     android:layout_height="@dimen/security_ring_size" />
 
                 <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="0.6"
+                    android:id="@+id/layoutProtectionStatus"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:gravity="start"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_horizontal"
                     android:orientation="vertical">
 
                     <TextView
@@ -100,14 +117,15 @@
                         android:textSize="10sp"
                         android:textStyle="bold"
                         android:background="@drawable/bg_reason_chip"
-                        android:paddingHorizontal="8dp"
+                        android:paddingHorizontal="12dp"
                         android:paddingVertical="4dp"
-                        android:layout_marginBottom="8dp" />
+                        android:layout_marginBottom="12dp" />
 
                     <TextView
                         android:id="@+id/tvStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:gravity="center"
                         android:text="@string/protection_inactive"
                         style="@style/ScamShield.CardTitle" />
 
@@ -115,31 +133,26 @@
                         android:id="@+id/tvStatusDetail"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center"
+                        android:textAlignment="center"
                         android:text="Enable notification access to begin protection"
                         style="@style/ScamShield.Caption" />
                         
-                    <TextView
-                        android:id="@+id/tvLastScan"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Last scan: —"
-                        android:textColor="@color/text_hint"
-                        android:textSize="12sp"
-                        android:visibility="gone" />
-
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnToggleProtection"
                         style="@style/ScamShield.Button.Gradient"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="20dp"
+                        android:background="@drawable/bg_btn_protection_active"
+                        android:stateListAnimator="@animator/scale_press_protection_button"
                         android:text="@string/grant_access"
                         android:textSize="13sp"
                         app:icon="@drawable/ic_shield"
                         app:iconGravity="textStart"
-                        app:iconPadding="8dp" />
+                        app:iconPadding="8dp"
+                        app:rippleColor="#1FFFFFFF" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -152,13 +165,6 @@
             android:orientation="horizontal"
             android:layout_marginBottom="12dp">
             
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_shield"
-                app:tint="@color/primary"
-                android:layout_marginEnd="8dp"/>
-
             <TextView
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -167,8 +173,14 @@
                 style="@style/ScamShield.CardTitle" />
                 
             <TextView
+                android:id="@+id/tvViewDetails"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:background="@drawable/bg_reason_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="5dp"
                 android:text="View Details >"
                 android:textColor="@color/primary"
                 android:textSize="13sp" />
@@ -195,16 +207,18 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_stat_card_blue"
+                    android:minHeight="138dp"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="14dp">
 
                     <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_marginBottom="14dp"
                         android:background="@drawable/bg_persona_icon_plate"
                         android:backgroundTint="#203B82F6"
-                        android:padding="4dp"
+                        android:padding="7dp"
                         android:src="@drawable/ic_search"
                         app:tint="@color/primary" />
 
@@ -214,14 +228,14 @@
                         android:layout_height="wrap_content"
                         android:text="0"
                         android:textColor="@color/text_primary"
-                        android:textSize="24sp"
+                        android:textSize="26sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:layout_marginBottom="12dp"
+                        android:layout_marginBottom="14dp"
                         android:text="Messages\nScanned"
                         android:lines="2"
                         style="@style/ScamShield.Caption" />
@@ -252,19 +266,21 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_stat_card_cyan"
+                    android:minHeight="138dp"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="14dp">
 
                     <ImageView
                         android:id="@+id/ivThreatIcon"
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_marginBottom="14dp"
                         android:background="@drawable/bg_persona_icon_plate"
-                        android:backgroundTint="#2010B981"
-                        android:padding="4dp"
+                        android:backgroundTint="#2000BFFF"
+                        android:padding="7dp"
                         android:src="@drawable/ic_warning"
-                        app:tint="@color/risk_safe" />
+                        app:tint="@color/primary_light" />
 
                     <TextView
                         android:id="@+id/tvThreatsCount"
@@ -272,14 +288,14 @@
                         android:layout_height="wrap_content"
                         android:text="0"
                         android:textColor="@color/text_primary"
-                        android:textSize="24sp"
+                        android:textSize="26sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:layout_marginBottom="12dp"
+                        android:layout_marginBottom="14dp"
                         android:text="Threats\nBlocked"
                         android:lines="2"
                         style="@style/ScamShield.Caption" />
@@ -290,7 +306,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="4dp"
                         android:progress="0"
-                        android:progressTint="@color/risk_safe"
+                        android:progressTint="@color/primary_light"
                         android:progressBackgroundTint="@color/divider" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -309,16 +325,18 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_stat_card_purple"
+                    android:minHeight="138dp"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="14dp">
 
                     <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_marginBottom="14dp"
                         android:background="@drawable/bg_persona_icon_plate"
                         android:backgroundTint="#208B5CF6"
-                        android:padding="4dp"
+                        android:padding="7dp"
                         android:src="@drawable/ic_persona"
                         app:tint="@color/accent" />
 
@@ -328,14 +346,14 @@
                         android:layout_height="wrap_content"
                         android:text="0"
                         android:textColor="@color/text_primary"
-                        android:textSize="24sp"
+                        android:textSize="26sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:layout_marginBottom="12dp"
+                        android:layout_marginBottom="14dp"
                         android:text="Scam\nBaits"
                         android:lines="2"
                         style="@style/ScamShield.Caption" />
@@ -354,6 +372,7 @@
 
         <!-- Quick test -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardQuickTest"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             style="@style/ScamShield.Card"
@@ -362,15 +381,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@drawable/bg_quick_test_panel"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="22dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginBottom="18dp">
                     
                     <ImageView
                         android:layout_width="36dp"
@@ -402,18 +422,6 @@
                             style="@style/ScamShield.Caption" />
                     </LinearLayout>
                     
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnAnalyze"
-                        style="@style/ScamShield.Button.Gradient"
-                        android:layout_width="wrap_content"
-                        android:layout_height="40dp"
-                        android:paddingHorizontal="16dp"
-                        android:text="Analyze Now"
-                        android:textSize="12sp"
-                        android:stateListAnimator="@animator/scale_press"
-                        app:icon="@drawable/ic_chevron_right"
-                        app:iconGravity="textEnd"
-                        app:iconPadding="4dp" />
                 </LinearLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -432,6 +440,21 @@
                         android:textColor="@color/text_primary"
                         android:textSize="15sp" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAnalyze"
+                    style="@style/ScamShield.Button.Gradient"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_btn_analyze_premium"
+                    android:stateListAnimator="@animator/scale_press_protection_button"
+                    android:text="Analyze Message"
+                    android:textSize="13sp"
+                    app:icon="@drawable/ic_search"
+                    app:iconGravity="textStart"
+                    app:iconPadding="8dp"
+                    app:rippleColor="#1FFFFFFF" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardResult"
@@ -559,49 +582,6 @@
                             android:textColor="@color/text_hint"
                             android:textSize="12sp" />
 
-                        <LinearLayout
-                            android:id="@+id/layoutFeedback"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center"
-                            android:orientation="horizontal">
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnMarkSafe"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginEnd="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/mark_safe"
-                                android:textAllCaps="false"
-                                android:textColor="@color/risk_safe"
-                                android:textSize="12sp"
-                                app:cornerRadius="@dimen/button_radius"
-                                app:icon="@drawable/ic_thumb_up"
-                                app:iconGravity="textStart"
-                                app:iconSize="16dp"
-                                app:iconTint="@color/risk_safe"
-                                app:strokeColor="@color/risk_safe" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnMarkScam"
-                                style="@style/Widget.Material3.Button.OutlinedButton"
-                                android:layout_width="0dp"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="6dp"
-                                android:layout_weight="1"
-                                android:text="@string/mark_scam"
-                                android:textAllCaps="false"
-                                android:textColor="@color/risk_high"
-                                android:textSize="12sp"
-                                app:cornerRadius="@dimen/button_radius"
-                                app:icon="@drawable/ic_thumb_down"
-                                app:iconGravity="textStart"
-                                app:iconSize="16dp"
-                                app:iconTint="@color/risk_high"
-                                app:strokeColor="@color/risk_high" />
-                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
@@ -630,20 +610,28 @@
                 style="@style/ScamShield.CardTitle" />
                 
             <TextView
+                android:id="@+id/tvViewAllActivity"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:background="@drawable/bg_reason_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="5dp"
                 android:text="View All >"
                 android:textColor="@color/primary"
                 android:textSize="13sp" />
         </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardRecentActivity"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             style="@style/ScamShield.Card.Compact"
             android:layout_marginBottom="@dimen/card_spacing">
 
             <LinearLayout
+                android:id="@+id/layoutRecentActivityContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
@@ -668,17 +656,14 @@
                     android:text="You're protected.\nNo threats detected yet."
                     android:textAlignment="center"
                     style="@style/ScamShield.Caption" />
+
+                <LinearLayout
+                    android:id="@+id/layoutRecentRows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnOpenMessageView"
-            style="@style/ScamShield.Button.Outlined"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Open Chat-Style Message View"
-            app:icon="@drawable/ic_chat"
-            app:iconGravity="textStart" />
-
     </LinearLayout>
 </ScrollView>

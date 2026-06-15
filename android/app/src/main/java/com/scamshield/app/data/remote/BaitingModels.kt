@@ -16,7 +16,9 @@ data class BaitingRequestDto(
     val scammer_dna: ScammerDnaDto? = null,
     val known_intelligence: List<KnownIntelligenceDto> = emptyList(),
     val history: List<ChatMessageDto>,
-    val offline_analytics: List<OfflineAnalyticsSyncDto> = emptyList()
+    val offline_analytics: List<OfflineAnalyticsSyncDto> = emptyList(),
+    val use_dynamic_delay: Boolean = true,
+    val fixed_delay_seconds: Int = 3
 )
 
 data class ScammerDnaDto(

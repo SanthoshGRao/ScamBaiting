@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import random
-from faker import Faker
+from faker import Faker  # type: ignore
 
 fake = Faker('en_IN') # Using Indian locale for names, addresses, phone numbers
 

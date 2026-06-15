@@ -10,6 +10,7 @@
     <dimen name="section_spacing">32dp</dimen>
     <dimen name="card_spacing">16dp</dimen>
     <dimen name="card_radius">20dp</dimen>
+    <dimen name="hero_card_radius">28dp</dimen>
     <dimen name="card_radius_compact">16dp</dimen>
     <dimen name="card_radius_small">12dp</dimen>
     <dimen name="card_stroke_width">1dp</dimen>
@@ -19,5 +20,5 @@
     <dimen name="nav_pill_radius">28dp</dimen>
     <dimen name="nav_pill_margin">16dp</dimen>
     <dimen name="nav_height">72dp</dimen>
-    <dimen name="security_ring_size">160dp</dimen>
+    <dimen name="security_ring_size">180dp</dimen>
 </resources>

@@ -2,17 +2,20 @@ package com.scamshield.app.detection
 
 import android.content.Context
 import android.util.Log
-import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.text.textclassifier.TextClassifier
 import dagger.hilt.android.qualifiers.ApplicationContext
+import org.json.JSONObject
+import org.tensorflow.lite.Interpreter
+import java.io.FileInputStream
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * EdgeAiClassifier — On-device Machine Learning for scam detection.
  * 
- * Uses MediaPipe Tasks Text Classification to evaluate messages offline.
- * Requires a "scam_detector.tflite" model file in the assets folder.
+ * Uses standard TensorFlow Lite Interpreter.
+ * Requires "scam_detector.tflite" and "vocab.json" in the assets folder.
  */
 @Singleton
 class EdgeAiClassifier @Inject constructor(
@@ -20,11 +23,13 @@ class EdgeAiClassifier @Inject constructor(
 ) {
     companion object {
         private const val TAG = "EdgeAiClassifier"
-        // The expected name of the model file in the assets folder
         private const val MODEL_NAME = "scam_detector.tflite"
+        private const val VOCAB_NAME = "vocab.json"
+        private const val MAX_LENGTH = 256
     }
 
-    private var textClassifier: TextClassifier? = null
+    private var interpreter: Interpreter? = null
+    private val vocab = mutableMapOf<String, Int>()
     private var isInitialized = false
 
     init {
@@ -33,22 +38,30 @@ class EdgeAiClassifier @Inject constructor(
 
     private fun initializeClassifier() {
         try {
-            // Gracefully check if the model exists in assets to prevent crashes
             val assets = context.assets.list("")
             if (assets == null || !assets.contains(MODEL_NAME)) {
                 Log.w(TAG, "Model $MODEL_NAME not found in assets. Edge AI will be disabled.")
                 return
             }
 
-            val baseOptions = BaseOptions.builder()
-                .setModelAssetPath(MODEL_NAME)
-                .build()
+            // Load Vocab
+            if (assets.contains(VOCAB_NAME)) {
+                val vocabJson = context.assets.open(VOCAB_NAME).bufferedReader().use { it.readText() }
+                val jsonObject = JSONObject(vocabJson)
+                val keys = jsonObject.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    vocab[key] = jsonObject.getInt(key)
+                }
+            } else {
+                Log.w(TAG, "Vocab $VOCAB_NAME not found in assets.")
+            }
+
+            // Load Model
+            val modelBuffer = loadModelFile(MODEL_NAME)
+            val options = Interpreter.Options()
+            interpreter = Interpreter(modelBuffer, options)
             
-            val options = TextClassifier.TextClassifierOptions.builder()
-                .setBaseOptions(baseOptions)
-                .build()
-            
-            textClassifier = TextClassifier.createFromOptions(context, options)
             isInitialized = true
             Log.i(TAG, "Edge AI Classifier initialized successfully.")
         } catch (e: Exception) {
@@ -56,43 +69,41 @@ class EdgeAiClassifier @Inject constructor(
         }
     }
 
+    private fun loadModelFile(modelName: String): MappedByteBuffer {
+        val fileDescriptor = context.assets.openFd(modelName)
+        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+        val fileChannel = inputStream.channel
+        val startOffset = fileDescriptor.startOffset
+        val declaredLength = fileDescriptor.declaredLength
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+    }
+
     /**
      * Classify the given text. Returns a confidence score [0.0, 1.0].
      * Returns null if the classifier isn't initialized or fails.
      */
     fun classify(text: String): Float? {
-        if (!isInitialized || textClassifier == null) {
+        if (!isInitialized || interpreter == null) {
             return null
         }
         
         return try {
-            val results = textClassifier?.classify(text)
-            var scamScore = 0f
-            var foundRelevantCategory = false
-
-            results?.classificationResult()?.classifications()?.firstOrNull()?.categories()?.forEach { category ->
-                val name = category.categoryName()?.lowercase() ?: ""
-                val index = category.index()
-                
-                // Typical models use "scam", "spam", "phishing", "1", or just index 1 for the positive class.
-                if (name.contains("scam") || name.contains("spam") || name.contains("phish") || name == "1" || index == 1) {
-                    scamScore = maxOf(scamScore, category.score())
-                    foundRelevantCategory = true
-                }
+            // Tokenize string -> IntArray (FloatArray for TFLite)
+            val words = text.lowercase().replace(Regex("[^a-z0-9 ]"), "").split("\\s+".toRegex())
+            val sequence = FloatArray(MAX_LENGTH) { 0f }
+            
+            for (i in words.indices) {
+                if (i >= MAX_LENGTH) break
+                val word = words[i]
+                sequence[i] = (vocab[word] ?: vocab["<oov>"] ?: 0).toFloat()
             }
             
-            // If the model just outputs a single score without specific names, we'll return it if it's high enough.
-            if (!foundRelevantCategory) {
-                // Just grab the highest score that isn't explicitly "safe" or "0"
-                results?.classificationResult()?.classifications()?.firstOrNull()?.categories()?.forEach { category ->
-                     val name = category.categoryName()?.lowercase() ?: ""
-                     if (!name.contains("safe") && !name.contains("legit") && name != "0") {
-                         scamScore = maxOf(scamScore, category.score())
-                     }
-                }
-            }
+            val inputBuffer = Array(1) { sequence }
+            val outputBuffer = Array(1) { FloatArray(1) }
             
-            scamScore
+            interpreter?.run(inputBuffer, outputBuffer)
+            
+            outputBuffer[0][0]
         } catch (e: Exception) {
             Log.e(TAG, "Edge AI Classification failed", e)
             null

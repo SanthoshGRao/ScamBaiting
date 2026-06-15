@@ -4,7 +4,7 @@
     <solid android:color="@color/transparent" />
     <stroke
         android:width="2dp"
-        android:color="@color/ring_active"
+        android:color="#FF1E90FF"
         android:dashWidth="6dp"
         android:dashGap="4dp" />
 </shape>

@@ -12,15 +12,18 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AnimationUtils
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.chip.Chip
 import com.scamshield.app.R
+import com.scamshield.app.data.local.entity.DetectionCacheEntity
 import com.scamshield.app.databinding.FragmentDashboardBinding
 import com.scamshield.app.service.ScamShieldNotificationService
 import com.scamshield.app.ui.widget.SecurityMonitorView
@@ -43,10 +46,12 @@ class DashboardFragment : Fragment() {
     private val viewModel: MainViewModel by activityViewModels()
 
     private var pulseAnimator: ObjectAnimator? = null
+    private var notificationPulseAnimator: ObjectAnimator? = null
     private var lastAnalyzedText: String? = null
     private var lastScannedCount = 0
     private var lastThreatCount = 0
     private var lastBaitedCount = 0
+    private var lastProtectionEnabled: Boolean? = null
     private val sandboxMessage = "URGENT: Your account was suspended for unusual activity. Click here for a KYC update and to verify your PAN card: http://sbi-kyc-verify.com"
 
     override fun onCreateView(
@@ -61,10 +66,7 @@ class DashboardFragment : Fragment() {
         setupUI()
         observeViewModel()
         viewModel.loadAnalytics()
-        // Trigger staggered layout animation
-        binding.dashboardRoot.layoutAnimation =
-            AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_stagger)
-        binding.dashboardRoot.scheduleLayoutAnimation()
+        runEntranceAnimations()
     }
 
     override fun onResume() {
@@ -76,6 +78,7 @@ class DashboardFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         pulseAnimator?.cancel()
+        notificationPulseAnimator?.cancel()
         _binding = null
     }
 
@@ -88,6 +91,7 @@ class DashboardFragment : Fragment() {
                 openNotificationAccessSettings()
             }
         }
+        binding.layoutNotificationAccessIndicator.setOnClickListener { openNotificationAccessSettings() }
 
         // Hidden Sandbox Simulator: Long press to inject mock notification
         binding.btnToggleProtection.setOnLongClickListener {
@@ -107,50 +111,18 @@ class DashboardFragment : Fragment() {
             viewModel.analyzeMessage(text, demoMode)
         }
         binding.btnExplainToggle.setOnClickListener {
-            val visible = binding.layoutExplainPanel.visibility == View.VISIBLE
-            binding.layoutExplainPanel.visibility = if (visible) View.GONE else View.VISIBLE
+            val isVisible = binding.layoutExplainPanel.visibility == View.VISIBLE
+            binding.layoutExplainPanel.visibility = if (isVisible) View.GONE else View.VISIBLE
+            binding.btnExplainToggle.setIconResource(if (isVisible) R.drawable.ic_info else R.drawable.ic_close)
         }
 
-        // Adaptive Learning Buttons
-        binding.btnMarkSafe.setOnClickListener {
-            lastAnalyzedText?.let { text ->
-                viewModel.markAsSafe(text.hashCode().toString())
-                hapticFeedback()
-                Toast.makeText(requireContext(), getString(R.string.marked_safe_toast), Toast.LENGTH_SHORT).show()
-                binding.btnMarkSafe.isEnabled = false
-                binding.btnMarkScam.isEnabled = false
-                binding.btnMarkSafe.text = "Marked Safe"
-                binding.btnMarkSafe.alpha = 0.7f
-            }
+        binding.tvViewDetails.setOnClickListener { openMessageDetails() }
+        binding.tvViewAllActivity.setOnClickListener {
+            requireActivity().findViewById<BottomNavigationView>(R.id.bottomNav)?.selectedItemId = R.id.nav_scammers
         }
 
-        binding.btnMarkScam.setOnClickListener {
-            lastAnalyzedText?.let { text ->
-                viewModel.markAsScam(text.hashCode().toString())
-                hapticFeedback()
-                Toast.makeText(requireContext(), getString(R.string.marked_scam_toast), Toast.LENGTH_SHORT).show()
-                binding.btnMarkSafe.isEnabled = false
-                binding.btnMarkScam.isEnabled = false
-                binding.btnMarkScam.text = "Marked Scam"
-                binding.btnMarkScam.alpha = 0.7f
-            }
-        }
 
-        binding.btnOpenMessageView.setOnClickListener {
-            startActivity(Intent(requireContext(), MessageInsightsActivity::class.java))
-        }
-
-        // Add subtle continuous shimmer/pulse effect to the Analyze button
-        ObjectAnimator.ofPropertyValuesHolder(
-            binding.btnAnalyze,
-            PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 0.85f, 1f),
-            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.02f, 1f),
-            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.02f, 1f)
-        ).apply {
-            duration = 2000
-            repeatCount = ValueAnimator.INFINITE
-            start()
-        }
+        startNotificationBellPulse()
 
         // Add glow focus to the text input
         binding.etTestMessage.setOnFocusChangeListener { _, hasFocus ->
@@ -159,6 +131,46 @@ class DashboardFragment : Fragment() {
                 .scaleY(if (hasFocus) 1.01f else 1f)
                 .setDuration(200)
                 .start()
+        }
+    }
+
+    private fun runEntranceAnimations() {
+        val targets = listOf(
+            binding.cardHero,
+            binding.cardStatScanned,
+            binding.cardStatThreats,
+            binding.cardStatBaited,
+            binding.cardQuickTest,
+            binding.cardRecentActivity,
+        )
+        targets.forEachIndexed { index, target ->
+            target.alpha = 0f
+            target.translationY = 28f
+            target.scaleX = 0.98f
+            target.scaleY = 0.98f
+            target.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setStartDelay((index * 100L).coerceAtMost(300L))
+                .setDuration(420L)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    private fun startNotificationBellPulse() {
+        notificationPulseAnimator = ObjectAnimator.ofPropertyValuesHolder(
+            binding.tvNotificationStatusBadge,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1f, 1.05f, 1f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1f, 1.05f, 1f),
+            PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 1f, 0.85f, 1f),
+        ).apply {
+            duration = 10_000L
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = DecelerateInterpolator()
+            start()
         }
     }
 
@@ -172,18 +184,12 @@ class DashboardFragment : Fragment() {
             lastScannedCount = scanned
             lastThreatCount = threats
             updateThreatCardStyle(threats)
-            updateLastScan(items.maxOfOrNull { it.timestamp } ?: 0L)
-
+            renderRecentActivity(items)
             // Animate progress bars
             ObjectAnimator.ofInt(binding.pbStatScanned, "progress", 0, 100).setDuration(1500).start()
             val threatProgress = if (scanned > 0) (threats.toFloat() / scanned * 100).toInt().coerceAtLeast(10) else 100
             ObjectAnimator.ofInt(binding.pbStatThreats, "progress", 0, threatProgress).setDuration(1500).start()
 
-            binding.tvEmptyState.text = if (items.isEmpty()) {
-                "You're protected.\nNo threats detected yet."
-            } else {
-                "${items.size} messages analyzed.\nOpen message view for details."
-            }
         }
 
         viewModel.baitingSessions.observe(viewLifecycleOwner) { sessions ->
@@ -228,16 +234,17 @@ class DashboardFragment : Fragment() {
                     else -> R.drawable.bg_badge_safe
                 }
             )
-            binding.tvResultTitle.text = if (isScam)
-                "Scam detected ($confPercent% confidence)" else "Message appears safe ($confPercent%)"
-            binding.tvResultTitle.setTextColor(
-                ContextCompat.getColor(requireContext(), if (isScam) R.color.risk_high else R.color.risk_safe)
-            )
+            binding.tvResultTitle.text = if (isScam) "Threat Detected" else "Message appears safe"
+            binding.tvResultTitle.setTextColor(ContextCompat.getColor(requireContext(),
+                if (isScam) R.color.risk_high else R.color.risk_safe))
+
             val explanation = result.serverVerdict?.explanation?.trim().orEmpty()
             binding.tvResultSummary.text = when {
                 explanation.isNotEmpty() -> explanation
-                result.ruleVerdict.matchedRules.isNotEmpty() ->
-                    "On-device rules: " + result.ruleVerdict.matchedRules.joinToString(", ") { it.rule }
+                result.ruleVerdict.matchedRules.isNotEmpty() -> {
+                    val count = result.ruleVerdict.matchedRules.size
+                    "Detected $count suspicious ${if (count == 1) "pattern" else "patterns"} in the message. Tap below to see details."
+                }
                 else -> result.statusMessage
             }
 
@@ -334,14 +341,6 @@ class DashboardFragment : Fragment() {
                 binding.chipGroupReasons.visibility = View.GONE
             }
 
-            // Reset feedback buttons
-            binding.btnMarkSafe.isEnabled = true
-            binding.btnMarkScam.isEnabled = true
-            binding.btnMarkSafe.alpha = 1f
-            binding.btnMarkScam.alpha = 1f
-            binding.btnMarkSafe.text = getString(R.string.mark_safe)
-            binding.btnMarkScam.text = getString(R.string.mark_scam)
-
             if (isScam) {
                 binding.securityMonitor.setState(SecurityMonitorView.State.THREAT)
             } else {
@@ -363,30 +362,85 @@ class DashboardFragment : Fragment() {
         }
     }
 
-    private fun updateThreatCardStyle(threatCount: Int) {
-        val ctx = requireContext()
-        val hasThreats = threatCount > 0
-        val iconColor = if (hasThreats) R.color.risk_high else R.color.text_secondary
-        val countColor = if (hasThreats) R.color.risk_high else R.color.text_primary
-        binding.ivThreatIcon.setColorFilter(ContextCompat.getColor(ctx, iconColor))
-        binding.tvThreatsCount.setTextColor(ContextCompat.getColor(ctx, countColor))
-        if (hasThreats) {
-            binding.cardStatThreats.strokeColor = ContextCompat.getColor(ctx, R.color.risk_high)
-            binding.cardStatThreats.strokeWidth = resources.getDimensionPixelSize(R.dimen.card_stroke_width)
-        } else {
-            binding.cardStatThreats.strokeColor = ContextCompat.getColor(ctx, R.color.card_stroke)
-            binding.cardStatThreats.strokeWidth = resources.getDimensionPixelSize(R.dimen.card_stroke_width)
+    private fun openMessageDetails() {
+        requireActivity().findViewById<BottomNavigationView>(R.id.bottomNav)?.selectedItemId = R.id.nav_analytics
+    }
+
+    private fun renderRecentActivity(items: List<DetectionCacheEntity>) {
+        val recent = items.sortedByDescending { it.timestamp }.take(3)
+        binding.layoutRecentRows.removeAllViews()
+
+        if (recent.isEmpty()) {
+            binding.ivRecentActivityShield.visibility = View.VISIBLE
+            binding.tvEmptyState.visibility = View.VISIBLE
+            binding.layoutRecentRows.visibility = View.GONE
+            binding.tvEmptyState.text = "You're protected.\nNo threats detected yet."
+            return
+        }
+
+        binding.ivRecentActivityShield.visibility = View.GONE
+        binding.tvEmptyState.visibility = View.GONE
+        binding.layoutRecentRows.visibility = View.VISIBLE
+
+        recent.forEach { item ->
+            binding.layoutRecentRows.addView(createRecentActivityRow(item))
         }
     }
 
-    private fun updateLastScan(latestTimestamp: Long) {
-        if (latestTimestamp <= 0L) {
-            binding.tvLastScan.visibility = View.GONE
-            return
+    private fun createRecentActivityRow(item: DetectionCacheEntity): View {
+        val ctx = requireContext()
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = ContextCompat.getDrawable(ctx, R.drawable.bg_recent_activity_row)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = dp(8) }
         }
-        val formatted = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(latestTimestamp))
-        binding.tvLastScan.text = "Last scan: $formatted"
-        binding.tvLastScan.visibility = View.VISIBLE
+
+        val dot = View(ctx).apply {
+            background = ContextCompat.getDrawable(ctx, R.drawable.bg_status_dot)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(ctx, if (item.isSuspicious) R.color.risk_medium else R.color.risk_safe)
+            )
+            layoutParams = LinearLayout.LayoutParams(dp(10), dp(10)).apply { marginEnd = dp(12) }
+        }
+
+        val textColumn = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val title = TextView(ctx).apply {
+            text = if (item.isSuspicious) "Threat reviewed" else "Message checked"
+            setTextColor(ContextCompat.getColor(ctx, R.color.text_primary))
+            textSize = 14f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        val meta = TextView(ctx).apply {
+            val time = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(item.timestamp))
+            text = "${item.category.formatCategoryLabel()} • ${(item.confidence * 100).toInt()}% • $time"
+            setTextColor(ContextCompat.getColor(ctx, R.color.text_hint))
+            textSize = 12f
+        }
+        textColumn.addView(title)
+        textColumn.addView(meta)
+
+        row.addView(dot)
+        row.addView(textColumn)
+        return row
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun updateThreatCardStyle(threatCount: Int) {
+        val ctx = requireContext()
+        val hasThreats = threatCount > 0
+        val iconColor = if (hasThreats) R.color.primary_light else R.color.text_secondary
+        val countColor = if (hasThreats) R.color.primary_light else R.color.text_primary
+        binding.ivThreatIcon.setColorFilter(ContextCompat.getColor(ctx, iconColor))
+        binding.tvThreatsCount.setTextColor(ContextCompat.getColor(ctx, countColor))
     }
 
     private fun animateCounter(
@@ -457,9 +511,19 @@ class DashboardFragment : Fragment() {
     }
 
     private fun updateProtectionStatus() {
-        val ctx = context ?: return
+        if (context == null) return
         val enabled = isNotificationListenerEnabled()
         val loading = viewModel.isLoading.value == true
+
+        if (enabled) {
+            binding.tvNotificationStatusBadge.text = "LIVE"
+            binding.tvNotificationStatusBadge.setBackgroundResource(R.drawable.bg_badge_live)
+            binding.tvNotificationStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.risk_safe))
+        } else {
+            binding.tvNotificationStatusBadge.text = "OFFLINE"
+            binding.tvNotificationStatusBadge.setBackgroundResource(R.drawable.bg_reason_chip)
+            binding.tvNotificationStatusBadge.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        }
 
         if (!loading) {
             binding.securityMonitor.setState(
@@ -468,18 +532,51 @@ class DashboardFragment : Fragment() {
             )
         }
 
-        binding.tvStatus.text = if (enabled)
-            "Your device is protected" else getString(R.string.protection_inactive)
-
-        binding.tvStatusDetail.text = if (enabled)
-            "Monitoring WhatsApp, Telegram, SMS, Email, Instagram"
-        else
+        val status = if (enabled) "Your device is protected" else getString(R.string.protection_inactive)
+        val detail = if (enabled) {
+            "Monitoring WhatsApp, Telegram, SMS, Email and Instagram."
+        } else {
             "Enable notification access to begin protection"
+        }
+        crossfadeProtectionStatus(enabled, status, detail)
+        binding.tvStatus.setTextColor(
+            ContextCompat.getColor(requireContext(), if (enabled) R.color.text_primary else R.color.text_secondary)
+        )
+        binding.tvStatusHeader.setTextColor(
+            ContextCompat.getColor(requireContext(), if (enabled) R.color.primary else R.color.text_hint)
+        )
 
         binding.btnToggleProtection.text = if (enabled)
             getString(R.string.protection_active_btn)
         else
             getString(R.string.grant_access)
+    }
+
+    private fun crossfadeProtectionStatus(enabled: Boolean, status: String, detail: String) {
+        val previous = lastProtectionEnabled
+        lastProtectionEnabled = enabled
+        if (previous == null || previous == enabled) {
+            binding.tvStatus.text = status
+            binding.tvStatusDetail.text = detail
+            return
+        }
+
+        binding.layoutProtectionStatus.animate()
+            .alpha(0f)
+            .translationY(8f)
+            .setDuration(140L)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                binding.tvStatus.text = status
+                binding.tvStatusDetail.text = detail
+                binding.layoutProtectionStatus.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(220L)
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
+            }
+            .start()
     }
 
     private fun isNotificationListenerEnabled(): Boolean {
