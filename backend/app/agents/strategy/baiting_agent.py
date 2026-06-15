@@ -365,15 +365,18 @@ class BaitingAgent:
         # Remove ALL XML-like tag pairs (catches <thought>, <truth>, <think>, <reasoning>, etc.)
         text = _XML_TAG_RE.sub('', raw)
         # Also catch unclosed tags or malformed ones
-        text = re.sub(r'</?(?:thought|truth|reasoning|think|plan|analysis|internal)[^>]*>', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'</?(?:thought|truth|reasoning|think|plan|analysis|internal)[^>]*>', '', text, flags=re.IGNORECASE).strip()
 
-        text = text.replace("\n", " ").strip()
         if not text:
             return ["hmm one sec"]
-        if "|||" in text:
-            parts = [p.strip() for p in text.split("|||") if p.strip()]
+            
+        if "\n\n" in text:
+            parts = [p.replace("\n", " ").strip() for p in text.split("\n\n") if p.strip()]
+        elif "|||" in text:
+            parts = [p.replace("\n", " ").strip() for p in text.split("|||") if p.strip()]
         else:
-            parts = [text]
+            parts = [text.replace("\n", " ").strip()]
+            
         parts = parts[:3]
         return parts if parts else ["hmm one sec"]
 
@@ -513,13 +516,11 @@ class BaitingAgent:
             "- Track the conversation flow. If you asked them a question and they answered it, acknowledge the answer before asking something new.\n\n"
 
             "═══ REALISM RULES ═══\n"
-            "- DO NOT USE EMOJIS. NEVER output emojis under any circumstances. Real people rarely use emojis in serious or tense situations.\n"
-            "- Write exactly how your character would text on WhatsApp. Not how an AI would write.\n"
-            "- Keep messages short (1-2 sentences). Real people don't write paragraphs in WhatsApp.\n"
-            "- Use natural Indian English if your character would. Examples: 'one sec', 'give me a minute ya', 'what is this', 'I don't get it'.\n"
-            "- DO NOT use formal language: no 'However', 'Furthermore', 'I understand your concern', 'I appreciate'.\n"
-            "- DO NOT add filler like 'Ah', 'Oh', 'Hmm' at the start of every message.\n"
-            "- Occasional typos are fine if they fit your character, but don't overdo it.\n\n"
+            "Generate WhatsApp replies from the victim as if they are a normal person.\n"
+            "Use lowercase text most of the time, minimal punctuation, occasional emojis, short 1-2 line messages, and split thoughts into multiple messages.\n"
+            "The victim should sound slightly confused, busy, cautious, and cooperative enough to keep the conversation going.\n"
+            "Avoid perfect grammar, formal language, witty jokes, or obvious trolling.\n"
+            "Replies should feel like real WhatsApp chats from an average person and subtly delay the scammer without revealing sensitive information.\n\n"
 
             "═══ CONVERSATION CONTEXT ═══\n"
             f"{context_block}\n\n"
@@ -533,9 +534,9 @@ class BaitingAgent:
             f"{response_priority}\n"
 
             "═══ OUTPUT FORMAT ═══\n"
-            "Write exactly ONE short WhatsApp message per turn.\n"
-            "DO NOT split your message into multiple bubbles. DO NOT use the ||| separator anymore.\n"
-            "Keep it concise, emotional, and highly relevant to the scammer's last message.\n"
+            "Write your response exactly as the user would type it in WhatsApp.\n"
+            "To split thoughts into multiple messages, separate them with DOUBLE NEWLINES.\n"
+            "Do NOT use '|||' or any other special characters.\n"
             "No XML tags, no reasoning, no metadata — just the raw text message."
         )
 

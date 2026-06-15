@@ -450,6 +450,7 @@ class BaitingManager @Inject constructor(
      * First reply uses only normal typing + [response_delay]; this adds perceived human delay between rounds.
      */
     private suspend fun delayBeforeReplyToFollowUpScammer(history: List<BaitingMessageEntity>) {
+        if (!prefs.getBoolean("use_dynamic_delay", true)) return
         val userTurns = history.count { it.role == "user" }
         if (userTurns <= 1) return
         val baseSec = prefs.getInt("followup_read_delay_base_sec", 14).coerceIn(4, 300)
