@@ -568,9 +568,9 @@ class BaitingManager @Inject constructor(
                 
                 delay(totalDelay)
 
-                if (index == 0) {
-                    markNotificationAsRead(senderKey)
-                }
+                // Removed markNotificationAsRead(senderKey) because marking as read
+                // dismisses the notification and invalidates the reply PendingIntent
+                // for apps like WhatsApp and SMS. Sending a reply will naturally mark it as read.
 
                 val cleanedPart = part.replace(",", "")
 
