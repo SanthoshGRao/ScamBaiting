@@ -712,16 +712,6 @@ class BaitingManager @Inject constructor(
             return normalized.split("|||").map { it.trim() }.filter { it.isNotBlank() }
         }
 
-        if (normalized.length <= 70) return listOf(normalized)
-
-        val sentenceChunks = normalized
-            .split(Regex("(?<=[.!?])\\s+"))
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-        if (sentenceChunks.size > 1) {
-            return sentenceChunks.take(3)
-        }
-
         return listOf(normalized)
     }
 }
