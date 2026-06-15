@@ -557,51 +557,54 @@ class BaitingManager @Inject constructor(
             }
 
             val parts = splitReplyText(replyText)
+            var cumulativeDelay = 0L
+            val cleanedParts = mutableListOf<String>()
+
             parts.forEachIndexed { index, part ->
-                // Default pauses since we no longer parse DTO natively
                 val pauseMs = pauseBeforeBubble(3) 
                 val typingDelay = calculateTypingDelay(part.length, index, scammerUserTurns)
                 val strategy = plan?.strategy ?: session.currentStrategy
                 val betweenGap = interBubbleHumanGap(index, part.length, strategy, scammerUserTurns)
                 val rawTotal = pauseMs + typingDelay + betweenGap
-                val totalDelay = scaleReplyDelayMs(rawTotal)
+                cumulativeDelay += scaleReplyDelayMs(rawTotal)
                 
-                delay(totalDelay)
+                cleanedParts.add(part.replace(",", ""))
+            }
+            
+            // Wait the total simulated typing time
+            delay(cumulativeDelay)
 
-                // Removed markNotificationAsRead(senderKey) because marking as read
-                // dismisses the notification and invalidates the reply PendingIntent
-                // for apps like WhatsApp and SMS. Sending a reply will naturally mark it as read.
+            // Join parts with newlines since Notification Reply only supports ONE reply per notification
+            val finalReplyText = cleanedParts.joinToString("\n")
 
-                val cleanedPart = part.replace(",", "")
-
-                baitingDao.addMessageAndUpdateSession(
-                    BaitingMessageEntity(
-                        senderId = senderKey,
-                        role = "assistant",
-                        content = cleanedPart,
-                        timestamp = System.currentTimeMillis()
-                    )
+            baitingDao.addMessageAndUpdateSession(
+                BaitingMessageEntity(
+                    senderId = senderKey,
+                    role = "assistant",
+                    content = finalReplyText,
+                    timestamp = System.currentTimeMillis()
                 )
+            )
 
-                sendAiReplyToApp(senderKey, cleanedPart)
-                if (index == parts.lastIndex && plan != null) {
-                    strategyPlanner.recordTurn(
-                        sessionId = senderKey,
-                        senderId = senderKey,
-                        mission = plan.mission,
-                        strategy = plan.strategy,
-                        persona = session.persona,
-                        scammerMessage = latestMessage,
-                        assistantReply = cleanedPart
-                    )
-                    val effectiveness = engagementEffectivenessEngine.updateEffectiveness(senderKey, plan.mission)
-                    strategyOutcomeTracker.recordOutcome(plan.mission, plan.strategy, session.persona, effectiveness)
-                    Log.i(
-                        TAG,
-                        "Outcome updated for $senderKey: score=${effectiveness.effectivenessScore}, " +
-                            "mission=${plan.mission.missionType}, strategy=${plan.strategy}"
-                    )
-                }
+            sendAiReplyToApp(senderKey, finalReplyText)
+            
+            if (plan != null) {
+                strategyPlanner.recordTurn(
+                    sessionId = senderKey,
+                    senderId = senderKey,
+                    mission = plan.mission,
+                    strategy = plan.strategy,
+                    persona = session.persona,
+                    scammerMessage = latestMessage,
+                    assistantReply = finalReplyText
+                )
+                val effectiveness = engagementEffectivenessEngine.updateEffectiveness(senderKey, plan.mission)
+                strategyOutcomeTracker.recordOutcome(plan.mission, plan.strategy, session.persona, effectiveness)
+                Log.i(
+                    TAG,
+                    "Outcome updated for $senderKey: score=${effectiveness.effectivenessScore}, " +
+                        "mission=${plan.mission.missionType}, strategy=${plan.strategy}"
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error generating reply", e)
