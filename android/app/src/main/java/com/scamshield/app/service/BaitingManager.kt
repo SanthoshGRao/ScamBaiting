@@ -702,8 +702,13 @@ class BaitingManager @Inject constructor(
     }
 
     private fun splitReplyText(replyText: String): List<String> {
-        val normalized = replyText.trim()
+        val normalized = replyText.replace("\"", "").replace("“", "").replace("”", "").trim()
         if (normalized.isEmpty()) return emptyList()
+
+        if (normalized.contains("|||")) {
+            return normalized.split("|||").map { it.trim() }.filter { it.isNotBlank() }
+        }
+
         if (normalized.length <= 70) return listOf(normalized)
 
         val sentenceChunks = normalized
@@ -714,20 +719,6 @@ class BaitingManager @Inject constructor(
             return sentenceChunks.take(3)
         }
 
-        val words = normalized.split(Regex("\\s+"))
-        val chunks = mutableListOf<String>()
-        val current = mutableListOf<String>()
-        for (word in words) {
-            current.add(word)
-            if (current.joinToString(" ").length >= 40) {
-                chunks.add(current.joinToString(" "))
-                current.clear()
-            }
-            if (chunks.size >= 3) break
-        }
-        if (current.isNotEmpty() && chunks.size < 3) {
-            chunks.add(current.joinToString(" "))
-        }
-        return if (chunks.isEmpty()) listOf(normalized) else chunks
+        return listOf(normalized)
     }
 }

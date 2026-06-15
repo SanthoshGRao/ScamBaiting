@@ -131,7 +131,7 @@ class CloudReplyProvider @Inject constructor(
             }
             val body = response.body()!!
             // We just return the unified text, BaitingManager will split it.
-            val reply = body.reply_text.ifBlank { body.reply_parts.joinToString(" ") }
+            val reply = if (body.reply_parts.isNotEmpty()) body.reply_parts.joinToString("|||") else body.reply_text
             Log.i(
                 TAG,
                 "Cloud reply success: strategy=${body.strategy_used}, persona=${body.persona_used}, chars=${reply.length}, parts=${body.reply_parts.size}"
