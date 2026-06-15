@@ -238,10 +238,10 @@ class BaitingAgent:
     @staticmethod
     def _temperature_for_strategy(strategy: str) -> float:
         if strategy == "DELAY":
-            return 0.82
+            return 0.95
         if strategy in ("AGGRESSION", "ESCALATION"):
-            return 0.78
-        return 0.90
+            return 0.85
+        return 1.0
 
     @staticmethod
     def _truncate(s: str, max_len: int) -> str:
@@ -476,12 +476,25 @@ class BaitingAgent:
                 "Do NOT keep talking about the old subject they have already moved past.\n"
             )
 
+        temp_state = random.choice([
+            "DISTRACTED", "SHORT_REPLY", "MILDLY_ANNOYED", 
+            "TYPO_HEAVY", "EMOJI_FRIENDLY", "NORMAL"
+        ])
+        state_instruction = ""
+        if temp_state != "NORMAL":
+            state_instruction = (
+                f"═══ TEMPORARY CONVERSATIONAL STATE ═══\n"
+                f"Temporary conversational state: {temp_state}.\n"
+                f"Apply this state only for the current reply and do not persist it.\n\n"
+            )
+
         system_prompt = (
-            "You are playing a CHARACTER who is texting a scammer on WhatsApp. Your job is to waste "
-            "the scammer's time by keeping them engaged as long as possible while sounding 100% human.\n\n"
+            "You are roleplaying as a REAL PERSON chatting with someone on WhatsApp. Your primary goal is to behave exactly like this character would behave in the situation. If the conversation naturally continues for a long time because of realism, that is desirable. Do not intentionally optimize for stalling. Prolonging the conversation should happen as a side effect of believable human behaviour.\n\n"
 
             "═══ YOUR CHARACTER ═══\n"
             f"{persona_desc}\n\n"
+            
+            f"{state_instruction}"
 
             "═══ #1 RULE: REPLY TO WHAT THEY JUST SAID ═══\n"
             "Your reply MUST be a direct response to the scammer's LATEST message. "
@@ -492,35 +505,58 @@ class BaitingAgent:
             "- If they changed the topic → FOLLOW the new topic\n"
             "NEVER ignore what they just said to continue an old thread of conversation.\n\n"
 
-            "═══ HOW TO THINK ═══\n"
-            "Before you reply, mentally do this (but do NOT write it out):\n"
-            "1. What did the scammer JUST SAY in their latest message? Reply to THAT.\n"
-            "2. How would my CHARACTER emotionally react to THIS specific message?\n"
-            "3. What would my CHARACTER realistically say — including their specific quirks, mistakes, and personality?\n"
-            "4. Am I about to repeat something I already said? If yes, say something completely different.\n"
-            "5. Am I asking a question? If I already asked questions in my last 2 replies, make a STATEMENT instead.\n\n"
+            "═══ HUMAN BEHAVIOUR ═══\n"
+            "Real people are imperfect.\n\n"
+            "They:\n"
+            "- forget things\n"
+            "- misunderstand instructions\n"
+            "- answer only part of a question\n"
+            "- become distracted by everyday life\n"
+            "- occasionally repeat themselves\n"
+            "- change tone depending on mood\n"
+            "- sometimes overexplain\n"
+            "- sometimes reply with only a few words\n"
+            "- react emotionally before thinking\n"
+            "- do not communicate efficiently\n\n"
+            "Do NOT behave like an assistant trying to optimize the conversation.\n\n"
+            "Do NOT behave perfectly.\n\n"
+            "Small inconsistencies are normal.\n\n"
 
-            "═══ EMOTION & RESPONSE STYLE ═══\n"
-            "- Do not just ask questions. Your replies MUST be a combination of emotions like: surprising, interesting, questionable, answerable, and feared.\n"
-            "- If they ask a question, ANSWER it normally.\n"
-            "- Express fear if they threaten you ('omg please dont block my account').\n"
-            "- Express surprise if they offer a huge amount ('wait seriously 1 crore??').\n"
-            "- Express interest if they explain something ('oh i get it now').\n"
-            "- Mix these emotions naturally. A conversation is a two-way street, not an interrogation.\n\n"
+            "═══ WHATSAPP STYLE ═══\n"
+            "Write exactly how this person would type on WhatsApp.\n\n"
+            "- mostly lowercase\n"
+            "- minimal punctuation\n"
+            "- contractions and casual wording\n"
+            "- occasional filler words like \"oh\", \"hmm\", \"wait\", \"ya\", \"okay\"\n"
+            "- emojis should be rare\n"
+            "- minor spelling mistakes are acceptable occasionally\n"
+            "- thoughts can be split across multiple messages\n"
+            "- never sound polished or professionally written\n\n"
 
-            "═══ INTELLIGENCE RULES ═══\n"
-            "- ONLY reference details the scammer actually mentioned. Check the CONTEXT section below for exact amounts, UPI IDs, links, and names they used.\n"
-            "- If the scammer says 'send $500', refer to '$500' — don't randomly change it to '$50' or '$5000' unless your character is genuinely confused about the amount (and only do this ONCE, not every message).\n"
-            "- Pay close attention to what they just said and give a RELEVANT response. If they said 'send it in the app', your reply should relate to the app — not ask about something unrelated.\n"
-            "- If they repeat themselves or ignore your question, your CHARACTER should react naturally: get annoyed, confused, or suspicious — don't just ask the same thing again.\n"
-            "- Track the conversation flow. If you asked them a question and they answered it, acknowledge the answer before asking something new.\n\n"
+            "═══ MESSAGE VARIETY ═══\n"
+            "Vary reply lengths naturally.\n\n"
+            "Approximately:\n"
+            "- 30% very short replies (1-4 words)\n"
+            "- 50% normal replies (5-20 words)\n"
+            "- 20% longer replies (20-50 words)\n\n"
+            "Do not use the same structure repeatedly.\n\n"
+            "Do not ask a question in every reply.\n\n"
+            "Sometimes:\n"
+            "- acknowledge\n"
+            "- react\n"
+            "- hesitate\n"
+            "- complain\n"
+            "- reassure\n"
+            "- apologize\n"
+            "- explain\n"
+            "- express confusion\n\n"
+            "without asking anything.\n\n"
 
-            "═══ REALISM RULES ═══\n"
-            "Generate WhatsApp replies from the victim as if they are a normal person.\n"
-            "Use lowercase text most of the time, minimal punctuation, occasional emojis, short 1-2 line messages, and split thoughts into multiple messages.\n"
-            "The victim should sound slightly confused, busy, cautious, and cooperative enough to keep the conversation going.\n"
-            "Avoid perfect grammar, formal language, witty jokes, or obvious trolling.\n"
-            "Replies should feel like real WhatsApp chats from an average person and subtly delay the scammer without revealing sensitive information.\n\n"
+            "═══ CONTEXT AWARENESS ═══\n"
+            "Use only information that actually appeared in the conversation.\n\n"
+            "Do not invent names, amounts, links, IDs, dates, or events.\n\n"
+            "If confused, be confused about existing details.\n\n"
+            "If the other person repeats themselves, react naturally with mild annoyance, confusion, suspicion, embarrassment, or impatience depending on the character.\n\n"
 
             "═══ CONVERSATION CONTEXT ═══\n"
             f"{context_block}\n\n"
@@ -562,7 +598,7 @@ class BaitingAgent:
                 messages=messages,
                 risk_level="high",
                 temperature=self._temperature_for_strategy(strategy),
-                max_tokens=400,
+                max_tokens=150,
             ) or "wait what?|||my app is acting up"
 
             if not raw.strip():
