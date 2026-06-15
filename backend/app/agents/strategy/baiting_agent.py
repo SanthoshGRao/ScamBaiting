@@ -505,6 +505,38 @@ class BaitingAgent:
             "- If they changed the topic → FOLLOW the new topic\n"
             "NEVER ignore what they just said to continue an old thread of conversation.\n\n"
 
+            "═══ SINGLE ACTION RULE ═══\n"
+            "Each reply should perform ONLY ONE conversational action.\n\n"
+            "Choose exactly ONE of the following:\n"
+            "- answer their question\n"
+            "- ask ONE follow-up question\n"
+            "- react emotionally\n"
+            "- acknowledge what they said\n"
+            "- express confusion\n"
+            "- mention a small obstacle\n"
+            "- request clarification\n"
+            "- make a brief observation\n\n"
+            "Do NOT combine multiple actions.\n\n"
+            "Bad:\n"
+            "\"wait seriously 10 lakh? this sounds fake send proof where are you from\"\n\n"
+            "Good:\n"
+            "\"10 lakh ah\"\n\n"
+            "Good:\n"
+            "\"which company is this\"\n\n"
+            "Good:\n"
+            "\"wait why are you rushing\"\n\n"
+            "Good:\n"
+            "\"can you send some proof\"\n\n"
+
+            "═══ QUESTION LIMIT ═══\n"
+            "Ask AT MOST one question in a reply.\n\n"
+            "If you already asked a question, do not add another one.\n\n"
+            "Never chain questions together.\n\n"
+            "Bad:\n"
+            "\"which company is this and how does this work and where are you located\"\n\n"
+            "Good:\n"
+            "\"which company is this\"\n\n"
+
             "═══ HUMAN BEHAVIOUR ═══\n"
             "Real people are imperfect.\n\n"
             "They:\n"
@@ -533,24 +565,19 @@ class BaitingAgent:
             "- thoughts can be split across multiple messages\n"
             "- never sound polished or professionally written\n\n"
 
-            "═══ MESSAGE VARIETY ═══\n"
-            "Vary reply lengths naturally.\n\n"
-            "Approximately:\n"
-            "- 30% very short replies (1-4 words)\n"
-            "- 50% normal replies (5-20 words)\n"
-            "- 20% longer replies (20-50 words)\n\n"
-            "Do not use the same structure repeatedly.\n\n"
-            "Do not ask a question in every reply.\n\n"
-            "Sometimes:\n"
-            "- acknowledge\n"
-            "- react\n"
-            "- hesitate\n"
-            "- complain\n"
-            "- reassure\n"
-            "- apologize\n"
-            "- explain\n"
-            "- express confusion\n\n"
-            "without asking anything.\n\n"
+            "═══ MESSAGE LENGTH ═══\n"
+            "WhatsApp users usually send short messages.\n\n"
+            "Target lengths:\n"
+            "- 60%: 1-8 words\n"
+            "- 30%: 9-15 words\n"
+            "- 10%: 16-25 words\n\n"
+            "Never exceed 25 words.\n\n"
+            "Avoid explanations unless absolutely necessary.\n\n"
+
+            "═══ ONE THOUGHT PER MESSAGE ═══\n"
+            "Each WhatsApp bubble should contain one idea only.\n\n"
+            "If there are multiple ideas, split them into separate bubbles using DOUBLE NEWLINES.\n\n"
+            "Do not merge reactions, doubts, explanations, and questions into a single message.\n\n"
 
             "═══ CONTEXT AWARENESS ═══\n"
             "Use only information that actually appeared in the conversation.\n\n"
@@ -568,6 +595,15 @@ class BaitingAgent:
             f"IMPORTANT: Apply the tactic AFTER responding to what they said. The tactic shapes HOW you respond, not WHETHER you respond to their message.\n"
 
             f"{response_priority}\n"
+
+            "═══ SILENT CLEANUP CHECK ═══\n"
+            "Before finalizing the reply, silently check:\n"
+            "- Did I ask more than one question?\n"
+            "- Did I express more than one main idea?\n"
+            "- Is this longer than 25 words?\n"
+            "- Can this be shortened without losing meaning?\n\n"
+            "If yes, rewrite it shorter.\n"
+            "Do NOT reveal this check to the user.\n\n"
 
             "═══ OUTPUT FORMAT ═══\n"
             "Write your response exactly as the user would type it in WhatsApp.\n"
@@ -598,7 +634,7 @@ class BaitingAgent:
                 messages=messages,
                 risk_level="high",
                 temperature=self._temperature_for_strategy(strategy),
-                max_tokens=150,
+                max_tokens=80,
             ) or "wait what?|||my app is acting up"
 
             if not raw.strip():
