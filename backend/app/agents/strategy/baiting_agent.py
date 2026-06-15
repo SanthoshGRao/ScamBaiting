@@ -10,6 +10,7 @@ import random
 import re
 import time
 from typing import List
+from dataclasses import dataclass
 
 from app.models.baiting_models import BaitingRequest, BaitingResponse, ChatMessage
 from app.providers.llm_classifier import BaseLLMProvider
@@ -17,6 +18,26 @@ from app.agents.strategy.stealth_optimizer import StealthOptimizer
 from app.agents.strategy.strategy_agent import STRATEGY_RULES
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class SessionCommitment:
+    pending_commitment: str | None = None
+    commitment_until_turn: int | None = None
+
+_commitments: dict[str, SessionCommitment] = {}
+
+def _detect_commitment(reply_text: str) -> str | None:
+    text = reply_text.lower()
+    if re.search(r"boss|meeting|office work|client call", text): return "BUSY_WITH_WORK"
+    if re.search(r"after lunch", text): return "AFTER_LUNCH"
+    if re.search(r"after dinner", text): return "AFTER_DINNER"
+    if re.search(r"tomorrow", text): return "TOMORROW"
+    if re.search(r"later", text): return "LATER"
+    if re.search(r"in \d+ min|give me \d+ min|one sec", text): return "SHORT_DELAY"
+    if re.search(r"battery low|phone charging|network issue", text): return "PHONE_ISSUE"
+    if re.search(r"son help|daughter help|husband|wife|friend", text): return "WAITING_FOR_SOMEONE"
+    if re.search(r"driving|bank|outside|travelling", text): return "MOVING_OUTSIDE"
+    return None
 
 # ──────────────────────────────────────────────────────────────────
 # DEEP PERSONAS — Full psychological profiles
@@ -410,23 +431,28 @@ class BaitingAgent:
                 cleaned.append(t)
         return cleaned if cleaned else ["hmm wait"]
 
-    def _compute_part_delays(self, reply_parts: list[str], incoming_len: int, use_dynamic: bool = True, fixed_delay: int = 3) -> list[int]:
+    def _compute_part_delays(self, reply_parts: list[str], incoming_len: int, use_dynamic: bool = True, fixed_delay: int = 3, active_commitment: str | None = None) -> list[int]:
         if not use_dynamic:
             return [fixed_delay] * len(reply_parts)
             
         delays = []
-        # Simulate reading time for the first message (e.g., 1 sec per 30 chars, max 4s)
         base_read_delay = min(max(incoming_len // 30, 1), 4)
         
+        commitment_delay = 0
+        if active_commitment:
+            if active_commitment == "SHORT_DELAY":
+                commitment_delay = random.randint(60, 180)
+            elif active_commitment in ("AFTER_LUNCH", "AFTER_DINNER", "TOMORROW", "LATER"):
+                commitment_delay = random.randint(300, 900)
+            else:
+                commitment_delay = random.randint(30, 120)
+        
         for i, part in enumerate(reply_parts):
-            # Simulate typing time: ~1 second per 25 characters, bounded between 2 and 6 seconds
             typing_delay = min(max(len(part) // 25, 2), 6)
             
             if i == 0:
-                # First bubble includes reading time + typing time
-                delays.append(base_read_delay + typing_delay)
+                delays.append(base_read_delay + typing_delay + commitment_delay)
             else:
-                # Subsequent bubbles just include typing time + brief pause (0-1s)
                 delays.append(typing_delay + random.randint(0, 1))
                 
         return delays
@@ -476,6 +502,15 @@ class BaitingAgent:
                 "Do NOT keep talking about the old subject they have already moved past.\n"
             )
 
+        current_turn = sum(1 for m in request.history if m.role == "assistant")
+        
+        commitment_state = _commitments.get(session_id)
+        if commitment_state and commitment_state.commitment_until_turn and current_turn >= commitment_state.commitment_until_turn:
+            commitment_state.pending_commitment = None
+            commitment_state.commitment_until_turn = None
+            
+        active_commitment = commitment_state.pending_commitment if commitment_state else None
+
         temp_state = random.choice([
             "DISTRACTED", "SHORT_REPLY", "MILDLY_ANNOYED", 
             "TYPO_HEAVY", "EMOJI_FRIENDLY", "NORMAL"
@@ -486,6 +521,13 @@ class BaitingAgent:
                 f"═══ TEMPORARY CONVERSATIONAL STATE ═══\n"
                 f"Temporary conversational state: {temp_state}.\n"
                 f"Apply this state only for the current reply and do not persist it.\n\n"
+            )
+            
+        if active_commitment:
+            state_instruction += (
+                f"═══ ACTIVE COMMITMENT ═══\n"
+                f"You previously said: {active_commitment.replace('_', ' ')}.\n"
+                f"You MUST behave consistently with this commitment. Do not suddenly complete unrelated actions.\n\n"
             )
 
         system_prompt = (
@@ -576,8 +618,13 @@ class BaitingAgent:
 
             "═══ ONE THOUGHT PER MESSAGE ═══\n"
             "Each WhatsApp bubble should contain one idea only.\n\n"
-            "If there are multiple ideas, split them into separate bubbles using DOUBLE NEWLINES.\n\n"
+            "If there are multiple ideas, split them into separate bubbles using |||.\n\n"
             "Do not merge reactions, doubts, explanations, and questions into a single message.\n\n"
+            
+            "═══ COMMITMENT CONSISTENCY ═══\n"
+            "If you say you are busy, unavailable, waiting for someone, travelling, charging your phone, or will do something later, you MUST behave consistently in future turns.\n\n"
+            "Do not immediately contradict yourself.\n\n"
+            "People generally mean what they say, even when delaying.\n\n"
 
             "═══ CONTEXT AWARENESS ═══\n"
             "Use only information that actually appeared in the conversation.\n\n"
@@ -607,8 +654,8 @@ class BaitingAgent:
 
             "═══ OUTPUT FORMAT ═══\n"
             "Write your response exactly as the user would type it in WhatsApp.\n"
-            "To split thoughts into multiple messages, separate them with DOUBLE NEWLINES.\n"
-            "Do NOT use '|||' or any other special characters.\n"
+            "To split thoughts into multiple messages, separate them with |||.\n"
+            "Do NOT use double newlines. Never simulate multiple bubbles using line breaks.\n"
             "No XML tags, no reasoning, no metadata — just the raw text message."
         )
 
@@ -646,6 +693,15 @@ class BaitingAgent:
             reply_parts = self._light_cleanup(reply_parts)
             reply_text = " ".join(reply_parts) if len(reply_parts) > 1 else reply_parts[0]
 
+            if not active_commitment:
+                new_comm = _detect_commitment(reply_text)
+                if new_comm:
+                    if not commitment_state:
+                        commitment_state = SessionCommitment()
+                        _commitments[session_id] = commitment_state
+                    commitment_state.pending_commitment = new_comm
+                    commitment_state.commitment_until_turn = current_turn + random.randint(2, 4)
+
             logger.info(
                 "Baiting reply [LLM]: session=%s, strategy=%s, parts=%d, text='%s'",
                 session_id, strategy, len(reply_parts), reply_text[:120]
@@ -656,7 +712,8 @@ class BaitingAgent:
                 reply_parts, 
                 incoming_len, 
                 use_dynamic=request.use_dynamic_delay, 
-                fixed_delay=request.fixed_delay_seconds
+                fixed_delay=request.fixed_delay_seconds,
+                active_commitment=active_commitment
             )
             response_delay_seconds = part_delay_seconds[0] if part_delay_seconds else 3
 
