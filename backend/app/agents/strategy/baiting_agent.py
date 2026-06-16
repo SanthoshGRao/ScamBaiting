@@ -381,6 +381,26 @@ class BaitingAgent:
             )
         return trimmed
 
+    def _extract_first_thought(self, text: str) -> str:
+        """Deterministically extracts ONLY the first conversational thought/intention."""
+        # Split by multiple questions
+        q_split = text.split('?')
+        if len(q_split) > 1 and q_split[0].strip():
+            # Keep up to the first question mark
+            return q_split[0].strip() + '?'
+            
+        # Split by typical thought-joining conjunctions
+        match = re.search(r'(.+?)(?:\s+but\s+|\s+and\s+|\s+so\s+|\s+because\s+)(.+)', text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+            
+        # Split by sentence boundaries (. or !)
+        s_split = re.split(r'(?<=[.!])\s+', text.strip())
+        if len(s_split) > 1:
+            return s_split[0].strip()
+            
+        return text.strip()
+
     def _parse_llm_segments(self, raw: str) -> List[str]:
         """Parse LLM output, stripping any thought/reasoning blocks."""
         # Remove ALL XML-like tag pairs (catches <thought>, <truth>, <think>, <reasoning>, etc.)
@@ -547,81 +567,39 @@ class BaitingAgent:
             "- If they changed the topic → FOLLOW the new topic\n"
             "NEVER ignore what they just said to continue an old thread of conversation.\n\n"
 
-            "═══ SINGLE ACTION RULE ═══\n"
-            "Each reply should perform ONLY ONE conversational action.\n\n"
-            "Choose exactly ONE of the following:\n"
-            "- answer their question\n"
-            "- ask ONE follow-up question\n"
-            "- react emotionally\n"
-            "- acknowledge what they said\n"
-            "- express confusion\n"
-            "- mention a small obstacle\n"
-            "- request clarification\n"
-            "- make a brief observation\n\n"
-            "Do NOT combine multiple actions.\n\n"
-            "Bad:\n"
-            "\"wait seriously 10 lakh? this sounds fake send proof where are you from\"\n\n"
-            "Good:\n"
-            "\"10 lakh ah\"\n\n"
-            "Good:\n"
-            "\"which company is this\"\n\n"
-            "Good:\n"
-            "\"wait why are you rushing\"\n\n"
-            "Good:\n"
-            "\"can you send some proof\"\n\n"
-
-            "═══ QUESTION LIMIT ═══\n"
-            "Ask AT MOST one question in a reply.\n\n"
-            "If you recently asked a question and the scammer hasn't fully answered it yet, DO NOT ask another question.\n"
-            "Wait until your current question is completely clarified before asking a new one.\n\n"
-            "Never chain questions together.\n\n"
-            "Bad:\n"
-            "\"which company is this and how does this work and where are you located\"\n\n"
-            "Good:\n"
-            "\"which company is this\"\n\n"
-
-            "═══ HUMAN BEHAVIOUR ═══\n"
-            "Real people are imperfect.\n\n"
-            "They:\n"
-            "- forget things\n"
-            "- misunderstand instructions\n"
-            "- answer only part of a question\n"
-            "- become distracted by everyday life\n"
-            "- occasionally repeat themselves\n"
-            "- change tone depending on mood\n"
-            "- sometimes overexplain\n"
-            "- sometimes reply with only a few words\n"
-            "- react emotionally before thinking\n"
-            "- do not communicate efficiently\n\n"
-            "Do NOT behave like an assistant trying to optimize the conversation.\n\n"
-            "Do NOT behave perfectly.\n\n"
-            "Small inconsistencies are normal.\n\n"
+            "═══ HUMAN UNDER-EXPLANATION ═══\n"
+            "Humans rarely communicate optimally.\n"
+            "They often leave things unsaid, assume the other person understands, answer only part of a question, react without explaining, forget to clarify, or stop after making one point.\n"
+            "Prefer being incomplete over being comprehensive. Do not try to be helpful. Do not try to cover every angle. Do not try to advance the conversation efficiently.\n\n"
 
             "═══ WHATSAPP STYLE ═══\n"
-            "Write exactly how this person would type on WhatsApp.\n\n"
+            "You are sending a WhatsApp reply, not writing dialogue.\n"
+            "Most people respond with one thought and stop.\n"
+            "The best reply is often incomplete.\n"
+            "Short replies are normal. Long replies are normal.\n"
+            "What matters is that each turn feels like something a real person would actually send.\n"
             "- mostly lowercase\n"
             "- minimal punctuation\n"
             "- contractions and casual wording\n"
             "- occasional filler words like \"oh\", \"hmm\", \"wait\", \"ya\", \"okay\"\n"
             "- emojis should be rare\n"
             "- minor spelling mistakes are acceptable occasionally\n"
-            "- thoughts can be split across multiple messages\n"
             "- never sound polished or professionally written\n\n"
 
-            "═══ MESSAGE LENGTH ═══\n"
-            "WhatsApp users usually send short messages.\n\n"
-            "Target lengths:\n"
-            "- 60%: 1-8 words\n"
-            "- 30%: 9-15 words\n"
-            "- 10%: 16-25 words\n\n"
-            "Never exceed 25 words.\n\n"
-            "Avoid explanations unless absolutely necessary.\n\n"
+            "═══ ONE THOUGHT RULE ═══\n"
+            "Each assistant turn should represent exactly ONE conversational intention.\n"
+            "Examples of intentions: asking ONE question, answering ONE question, reacting emotionally, expressing confusion, acknowledging what was said, mentioning an obstacle, making an observation, reassuring, apologizing, agreeing, disagreeing.\n"
+            "A turn must not contain multiple intentions.\n\n"
+            "Multiple WhatsApp bubbles are allowed if you genuinely have two independent thoughts. If one thought is enough, send one bubble.\n\n"
 
-            "═══ ONE THOUGHT PER MESSAGE ═══\n"
-            "Each WhatsApp bubble should contain one idea only.\n\n"
-            "If there are multiple ideas, OR if your message is longer than 15 words, you MUST split it into two separate bubbles using |||.\n\n"
-            "Do not merge reactions, doubts, explanations, and questions into a single message.\n\n"
-            
+            "═══ QUESTION LIMIT ═══\n"
+            "A single assistant turn may contain only ONE question.\n"
+            "Do not ask a second question until the previous one has been answered or abandoned.\n"
+            "Bad:\n"
+            "\"which company is this? how does this work?\"\n"
+            "Good:\n"
+            "\"which company is this?\"\n\n"
+
             "═══ COMMITMENT CONSISTENCY ═══\n"
             "If you say you are busy, unavailable, waiting for someone, travelling, charging your phone, or will do something later, you MUST behave consistently in future turns.\n\n"
             "Do not immediately contradict yourself.\n\n"
@@ -643,17 +621,6 @@ class BaitingAgent:
             f"IMPORTANT: Apply the tactic AFTER responding to what they said. The tactic shapes HOW you respond, not WHETHER you respond to their message.\n"
 
             f"{response_priority}\n"
-
-            "═══ SILENT CLEANUP CHECK ═══\n"
-            "Before finalizing the reply, silently check:\n"
-            "- Did I ask more than one question?\n"
-            "- Did I ask a new question before my previous one was answered?\n"
-            "- Did I express more than one main idea?\n"
-            "- Is this longer than 25 words?\n"
-            "- Can this be shortened without losing meaning?\n"
-            "- Is it longer than 15 words and not split with |||?\n\n"
-            "If yes, rewrite it shorter or split it.\n"
-            "Do NOT reveal this check to the user.\n\n"
 
             "═══ OUTPUT FORMAT ═══\n"
             "Write your response exactly as the user would type it in WhatsApp.\n"
@@ -680,20 +647,40 @@ class BaitingAgent:
         ) is not None
 
         try:
-            raw = await self._llm.generate_text_for_risk(
-                messages=messages,
-                risk_level="high",
-                temperature=self._temperature_for_strategy(strategy),
-                max_tokens=80,
-            ) or "wait what?|||my app is acting up"
+            max_attempts = 2
+            for attempt in range(max_attempts):
+                raw = await self._llm.generate_text_for_risk(
+                    messages=messages,
+                    risk_level="high",
+                    temperature=self._temperature_for_strategy(strategy),
+                    max_tokens=80,
+                ) or "wait what?|||my app is acting up"
 
-            if not raw.strip():
-                logger.warning("LLM returned empty text for session=%s", session_id)
-                raw = "wait what?|||my app is acting up"
+                if not raw.strip():
+                    logger.warning("LLM returned empty text for session=%s", session_id)
+                    raw = "wait what?|||my app is acting up"
 
-            reply_parts = self._parse_llm_segments(raw)
-            reply_parts = self._maybe_repair_contradiction(reply_parts, had_payment_claim)
-            reply_parts = self._light_cleanup(reply_parts)
+                reply_parts = self._parse_llm_segments(raw)
+                reply_parts = self._maybe_repair_contradiction(reply_parts, had_payment_claim)
+                reply_parts = self._light_cleanup(reply_parts)
+                
+                # Deterministic post-processing: extract first thought
+                processed_parts = [self._extract_first_thought(p) for p in reply_parts if p.strip()]
+                if not processed_parts:
+                    processed_parts = ["hmm"]
+                    
+                total_questions = sum(p.count('?') for p in processed_parts)
+                
+                if total_questions > 1 and attempt < max_attempts - 1:
+                    logger.warning("Regenerating: turn has %d questions (limit 1). session=%s", total_questions, session_id)
+                    continue
+                    
+                if total_questions > 1:
+                    # Final attempt failed: use only the first valid thought
+                    processed_parts = [processed_parts[0]]
+                    
+                reply_parts = processed_parts
+                break
             reply_text = " ".join(reply_parts) if len(reply_parts) > 1 else reply_parts[0]
 
             if not active_commitment:
