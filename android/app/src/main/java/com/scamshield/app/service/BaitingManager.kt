@@ -106,6 +106,14 @@ class BaitingManager @Inject constructor(
     private val senderMutexes = ConcurrentHashMap<String, kotlinx.coroutines.sync.Mutex>()
     private val lastPackageForSender = ConcurrentHashMap<String, String>()
 
+    private val processedEventKeys = ConcurrentHashMap<String, Long>()
+
+    private fun cleanupExpiredKeys() {
+        val now = System.currentTimeMillis()
+        val expired = processedEventKeys.filterValues { now - it > 5 * 60 * 1000L }.keys
+        expired.forEach { processedEventKeys.remove(it) }
+    }
+
     private val scope = CoroutineScope(
         SupervisorJob() +
             Dispatchers.IO +
@@ -493,10 +501,27 @@ class BaitingManager @Inject constructor(
         try {
             val history = baitingDao.getMessagesForSender(senderKey)
             val scammerUserTurns = history.count { it.role == "user" }
-            val latestMessage = history.lastOrNull { it.role == "user" }?.content ?: ""
-            delayBeforeReplyToFollowUpScammer(history)
+            val latestUserMsg = history.lastOrNull { it.role == "user" }
+            val latestMessage = latestUserMsg?.content ?: ""
             
             val session = baitingDao.getSession(senderKey) ?: return
+            
+            // --- EVENT DEDUPLICATION ---
+            val ts = latestUserMsg?.timestamp ?: 0L
+            val rawKey = "${session.sessionId}|$latestMessage|$ts"
+            val eventKey = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(rawKey.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+                
+            cleanupExpiredKeys()
+            if (processedEventKeys.containsKey(eventKey)) {
+                Log.i(TAG, "Deduplicating Android send: event already processed ($eventKey)")
+                return
+            }
+            processedEventKeys[eventKey] = System.currentTimeMillis()
+
+            delayBeforeReplyToFollowUpScammer(history)
+            
             val plan = if (latestMessage.isNotBlank()) planEngagement(senderKey, latestMessage) else null
             
             var replyText = ""

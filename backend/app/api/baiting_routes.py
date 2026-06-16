@@ -38,8 +38,9 @@ _reply_cache: dict[str, dict] = {}
 _CACHE_TTL = 300  # 5 minutes
 
 def _get_idempotency_key(request: BaitingRequest) -> str:
-    last_user_msg = next((m.content for m in reversed(request.history) if m.role == "user"), "")
-    key_str = f"{request.session_id}:{last_user_msg}:{len(request.history)}"
+    last_user_index = max((i for i, m in enumerate(request.history) if m.role == "user"), default=-1)
+    last_user_msg = request.history[last_user_index].content if last_user_index >= 0 else ""
+    key_str = f"{request.session_id}:{last_user_msg}:{last_user_index}"
     return hashlib.sha256(key_str.encode()).hexdigest()
 
 def get_baiting_agent() -> BaitingAgent:
