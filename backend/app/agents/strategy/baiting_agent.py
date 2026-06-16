@@ -653,8 +653,33 @@ class BaitingAgent:
                 "Make it fit the conversation. Don't sound promotional."
             )
 
-        messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        collapsed_history = []
         for msg in self._trim_history(request.history):
+            content = msg.content
+            # To break the multi-bubble feedback loop, keep only the first bubble
+            if msg.role == "assistant":
+                if "\n" in content:
+                    content = content.split("\n")[0].strip()
+                if "|||" in content:
+                    content = content.split("|||")[0].strip()
+
+            if (
+                collapsed_history
+                and collapsed_history[-1].role == "assistant"
+                and msg.role == "assistant"
+            ):
+                # Strong approach: Do NOT save follow-up assistant bubbles
+                pass
+            else:
+                collapsed_history.append(
+                    ChatMessage(
+                        role=msg.role,
+                        content=content,
+                    )
+                )
+
+        messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        for msg in collapsed_history:
             messages.append({"role": msg.role, "content": msg.content})
 
         had_payment_claim = _PAID_ASSISTANT.search(
