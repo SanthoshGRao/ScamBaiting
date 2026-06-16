@@ -389,11 +389,6 @@ class BaitingAgent:
             # Keep up to the first question mark
             return q_split[0].strip() + '?'
             
-        # Split by typical thought-joining conjunctions
-        match = re.search(r'(.+?)(?:\s+but\s+|\s+and\s+|\s+so\s+|\s+because\s+)(.+)', text, re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-            
         # Split by sentence boundaries (. or !)
         s_split = re.split(r'(?<=[.!])\s+', text.strip())
         if len(s_split) > 1:
