@@ -677,10 +677,10 @@ class BaitingAgent:
                 reply_parts = self._maybe_repair_contradiction(reply_parts, had_payment_claim)
                 reply_parts = self._light_cleanup(reply_parts)
                 
-                # Deterministic post-processing: extract first thought
-                processed_parts = [self._extract_first_thought(p) for p in reply_parts if p.strip()]
-                if not processed_parts:
-                    processed_parts = ["hmm"]
+                # Deterministic post-processing: extract ONLY the first thought from the very first segment
+                first_part = reply_parts[0] if reply_parts else "hmm"
+                first_thought = self._extract_first_thought(first_part)
+                processed_parts = [first_thought] if first_thought.strip() else ["hmm"]
                     
                 total_questions = sum(p.count('?') for p in processed_parts)
                 
