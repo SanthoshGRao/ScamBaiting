@@ -395,7 +395,7 @@ class BaitingAgent:
             return s_split[0].strip()
         return text.strip()
 
-    def _enforce_max_words(self, parts: list[str], max_words: int = 9) -> list[str]:
+    def _enforce_max_words(self, parts: list[str], max_words: int = 20) -> list[str]:
         """Splits bubbles that exceed max_words into multiple smaller bubbles."""
         final_parts = []
         for part in parts:
@@ -600,8 +600,10 @@ class BaitingAgent:
             "Multiple WhatsApp bubbles are allowed if you genuinely have two independent thoughts. If one thought is enough, send one bubble.\n\n"
 
             "═══ MESSAGE LENGTH LIMIT ═══\n"
-            "A single WhatsApp bubble must NOT exceed 10 words.\n"
-            "If your thought is longer than 8-10 words, you MUST break it into multiple separate bubbles using |||.\n"
+            "Your entire total response must NOT exceed 20 words.\n"
+            "Send 1 to 3 short bubbles total.\n"
+            "A single WhatsApp bubble must NOT exceed 20 words.\n"
+            "If your thought is longer than 20 words, you MUST break it into multiple separate bubbles using |||.\n"
             "Example:\n"
             "\"i checked my account but the money is not there\" (10 words) → \"i checked my account|||but the money is not there\"\n\n"
 
