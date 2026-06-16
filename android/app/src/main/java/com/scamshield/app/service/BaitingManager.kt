@@ -86,10 +86,12 @@ class BaitingManager @Inject constructor(
      */
     private val replyTimeMultiplier: Float
         get() {
+            val delaySec = prefs.getInt("response_delay", DEFAULT_RESPONSE_DELAY_SEC)
+            if (delaySec == 0) return 0f // Guarantee zero delay if user wants it instant
+            
             val useDynamic = prefs.getBoolean("use_dynamic_delay", true)
             if (!useDynamic) return 1f
             
-            val delaySec = prefs.getInt("response_delay", DEFAULT_RESPONSE_DELAY_SEC)
             return delaySec.toFloat() / DEFAULT_RESPONSE_DELAY_SEC.toFloat()
         }
 
