@@ -508,7 +508,7 @@ class BaitingManager @Inject constructor(
             
             // --- EVENT DEDUPLICATION ---
             val ts = latestUserMsg?.timestamp ?: 0L
-            val rawKey = "${session.sessionId}|$latestMessage|$ts"
+            val rawKey = "${session.senderId}|$latestMessage|$ts"
             val eventKey = java.security.MessageDigest.getInstance("SHA-256")
                 .digest(rawKey.toByteArray())
                 .joinToString("") { "%02x".format(it) }
