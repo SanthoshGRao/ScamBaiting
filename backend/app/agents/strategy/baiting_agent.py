@@ -393,8 +393,20 @@ class BaitingAgent:
         s_split = re.split(r'(?<=[.!])\s+', text.strip())
         if len(s_split) > 1:
             return s_split[0].strip()
-            
         return text.strip()
+
+    def _enforce_max_words(self, parts: list[str], max_words: int = 9) -> list[str]:
+        """Splits bubbles that exceed max_words into multiple smaller bubbles."""
+        final_parts = []
+        for part in parts:
+            words = part.split()
+            if len(words) <= max_words:
+                final_parts.append(part)
+            else:
+                for i in range(0, len(words), max_words):
+                    chunk = " ".join(words[i:i+max_words])
+                    final_parts.append(chunk)
+        return final_parts
 
     def _parse_llm_segments(self, raw: str) -> List[str]:
         """Parse LLM output, stripping any thought/reasoning blocks."""
@@ -587,6 +599,12 @@ class BaitingAgent:
             "A turn must not contain multiple intentions.\n\n"
             "Multiple WhatsApp bubbles are allowed if you genuinely have two independent thoughts. If one thought is enough, send one bubble.\n\n"
 
+            "═══ MESSAGE LENGTH LIMIT ═══\n"
+            "A single WhatsApp bubble must NOT exceed 10 words.\n"
+            "If your thought is longer than 8-10 words, you MUST break it into multiple separate bubbles using |||.\n"
+            "Example:\n"
+            "\"i checked my account but the money is not there\" (10 words) → \"i checked my account|||but the money is not there\"\n\n"
+
             "═══ QUESTION LIMIT ═══\n"
             "A single assistant turn may contain only ONE question.\n"
             "Do not ask a second question until the previous one has been answered or abandoned.\n"
@@ -674,6 +692,7 @@ class BaitingAgent:
                     # Final attempt failed: use only the first valid thought
                     processed_parts = [processed_parts[0]]
                     
+                processed_parts = self._enforce_max_words(processed_parts)
                 reply_parts = processed_parts
                 break
             reply_text = " ".join(reply_parts) if len(reply_parts) > 1 else reply_parts[0]
