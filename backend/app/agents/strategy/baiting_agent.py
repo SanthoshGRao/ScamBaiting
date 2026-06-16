@@ -572,7 +572,8 @@ class BaitingAgent:
 
             "═══ QUESTION LIMIT ═══\n"
             "Ask AT MOST one question in a reply.\n\n"
-            "If you already asked a question, do not add another one.\n\n"
+            "If you recently asked a question and the scammer hasn't fully answered it yet, DO NOT ask another question.\n"
+            "Wait until your current question is completely clarified before asking a new one.\n\n"
             "Never chain questions together.\n\n"
             "Bad:\n"
             "\"which company is this and how does this work and where are you located\"\n\n"
@@ -618,7 +619,7 @@ class BaitingAgent:
 
             "═══ ONE THOUGHT PER MESSAGE ═══\n"
             "Each WhatsApp bubble should contain one idea only.\n\n"
-            "If there are multiple ideas, split them into separate bubbles using |||.\n\n"
+            "If there are multiple ideas, OR if your message is longer than 15 words, you MUST split it into two separate bubbles using |||.\n\n"
             "Do not merge reactions, doubts, explanations, and questions into a single message.\n\n"
             
             "═══ COMMITMENT CONSISTENCY ═══\n"
@@ -646,10 +647,12 @@ class BaitingAgent:
             "═══ SILENT CLEANUP CHECK ═══\n"
             "Before finalizing the reply, silently check:\n"
             "- Did I ask more than one question?\n"
+            "- Did I ask a new question before my previous one was answered?\n"
             "- Did I express more than one main idea?\n"
             "- Is this longer than 25 words?\n"
-            "- Can this be shortened without losing meaning?\n\n"
-            "If yes, rewrite it shorter.\n"
+            "- Can this be shortened without losing meaning?\n"
+            "- Is it longer than 15 words and not split with |||?\n\n"
+            "If yes, rewrite it shorter or split it.\n"
             "Do NOT reveal this check to the user.\n\n"
 
             "═══ OUTPUT FORMAT ═══\n"
