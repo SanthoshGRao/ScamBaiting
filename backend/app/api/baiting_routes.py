@@ -4,7 +4,9 @@ Baiting Routes — API endpoints for Scam Baiting operations.
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import time
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -32,6 +34,13 @@ _baiting_agent: BaitingAgent | None = None
 # Heuristic-only selector keeps /bait/reply token usage low (no extra LLM call).
 _strategy_selector = StrategyAgent(llm_provider=None)
 
+_reply_cache: dict[str, dict] = {}
+_CACHE_TTL = 300  # 5 minutes
+
+def _get_idempotency_key(request: BaitingRequest) -> str:
+    last_user_msg = next((m.content for m in reversed(request.history) if m.role == "user"), "")
+    key_str = f"{request.session_id}:{last_user_msg}:{len(request.history)}"
+    return hashlib.sha256(key_str.encode()).hexdigest()
 
 def get_baiting_agent() -> BaitingAgent:
     """Get singleton BaitingAgent."""
@@ -61,6 +70,18 @@ async def generate_reply(
 ) -> BaitingResponse:
     """Generate persona-based reply."""
     rate_limiter.check(f"user:{_.id}:bait")
+    
+    # --- Idempotency Check ---
+    now = time.time()
+    expired = [k for k, v in _reply_cache.items() if now - v['time'] > _CACHE_TTL]
+    for k in expired:
+        del _reply_cache[k]
+
+    event_key = _get_idempotency_key(request)
+    if event_key in _reply_cache:
+        logger.info("Idempotency hit: Returning cached response for %s", event_key)
+        return _reply_cache[event_key]['response']
+
     agent = get_baiting_agent()
     
     if request.offline_analytics:
@@ -170,6 +191,8 @@ async def generate_reply(
                 )
             )
             db.commit()
+            
+        _reply_cache[event_key] = {'response': response, 'time': time.time()}
         return response
     except Exception as e:
         logger.error(
