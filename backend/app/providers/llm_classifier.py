@@ -31,11 +31,11 @@ class LLMSettings(BaseSettings):
     """LLM provider configuration."""
     groq_api_key: str = Field(default="", description="Groq API key")
     openai_api_key: str = Field(default="", description="OpenAI API key")
-    llm_model: str = Field(default="gpt-4.1-mini", description="OpenAI model ID")
+    llm_model: str = Field(default="gpt-5.5-mini", description="OpenAI model ID")
     detection_groq_model: str = Field(default="llama-3.1-8b-instant")
-    detection_openai_fallback_model: str = Field(default="gpt-4.1-mini")
-    response_openai_high_model: str = Field(default="gpt-4.1")
-    response_openai_medium_model: str = Field(default="gpt-4.1-mini")
+    detection_openai_fallback_model: str = Field(default="gpt-5.5-mini")
+    response_openai_high_model: str = Field(default="gpt-5.5")
+    response_openai_medium_model: str = Field(default="gpt-5.5-mini")
     llm_temperature: float = Field(default=0.78, ge=0.0, le=2.0)
     llm_top_p: float = Field(default=0.9, ge=0.0, le=1.0)
     llm_max_tokens: int = Field(default=220, ge=32, le=4096)
@@ -235,6 +235,35 @@ class OpenAIProvider(BaseLLMProvider):
             logger.error("openai package not installed. Run: pip install openai")
             return False
 
+    async def _chat_completions_create(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        response_format: dict | None = None,
+    ):
+        kwargs = {
+            "model": model,
+            "messages": messages,
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        if top_p is not None:
+            kwargs["top_p"] = top_p
+        if response_format is not None:
+            kwargs["response_format"] = response_format
+
+        if model.startswith(("gpt-5", "o1", "o3")):
+            kwargs["max_completion_tokens"] = max_tokens
+            kwargs.pop("temperature", None)
+            kwargs.pop("top_p", None)
+        else:
+            kwargs["max_tokens"] = max_tokens
+
+        return await self._client.chat.completions.create(**kwargs)
+
     async def classify(
         self,
         text: str,
@@ -254,13 +283,12 @@ class OpenAIProvider(BaseLLMProvider):
         )
 
         try:
-            response = await self._client.chat.completions.create(
+            response = await self._chat_completions_create(
                 model=self._settings.detection_openai_fallback_model,
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                # Keep classification relatively stable even when chat style is more random.
                 temperature=min(self._settings.llm_temperature, 0.45),
                 top_p=self._settings.llm_top_p,
                 max_tokens=self._settings.llm_max_tokens,
@@ -292,7 +320,7 @@ class OpenAIProvider(BaseLLMProvider):
         if not self._available or not self._client:
             return False
         try:
-            response = await self._client.chat.completions.create(
+            response = await self._chat_completions_create(
                 model=self._settings.response_openai_medium_model,
                 messages=[{"role": "user", "content": "ping"}],
                 temperature=0.0,
@@ -323,7 +351,7 @@ class OpenAIProvider(BaseLLMProvider):
         temperature: float = 0.85,
         max_tokens: int = 120,
     ) -> str:
-        """Route to gpt-4.1 for high-risk, gpt-4.1-mini for medium/low."""
+        """Route to gpt-5.5 for high-risk, gpt-5.5-mini for medium/low."""
         model = (
             self._settings.response_openai_high_model
             if risk_level == "high"
@@ -350,7 +378,7 @@ class OpenAIProvider(BaseLLMProvider):
 
         prepared_messages = self._prepare_messages(messages)
         tuned_temperature = self._tuned_temperature(temperature)
-        response = await self._client.chat.completions.create(
+        response = await self._chat_completions_create(
             model=model,
             messages=prepared_messages,
             temperature=tuned_temperature,

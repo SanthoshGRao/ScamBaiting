@@ -41,7 +41,7 @@ class ResponseService:
         # further re-randomization downstream.
         max_tokens = 30 if random.random() < 0.4 else random.randint(100, 120)
 
-        # §1.2 fix: Provider internally routes to gpt-4.1 (high) or gpt-4.1-mini (medium/low)
+        # §1.2 fix: Provider internally routes to gpt-5.5 (high) or gpt-5.5-mini (medium/low)
         text = await self._provider.generate_text_for_risk(
             messages=compact,
             risk_level=risk_level,

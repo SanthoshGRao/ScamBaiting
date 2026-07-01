@@ -64,7 +64,7 @@ class DetectionSettings(BaseSettings):
         description="Primary detection LLM provider"
     )
     llm_model: str = Field(
-        default="gpt-4.1-mini",
+        default="gpt-5.5-mini",
         description="LLM model identifier"
     )
     llm_timeout_seconds: float = Field(

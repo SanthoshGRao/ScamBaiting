@@ -50,7 +50,7 @@ def get_baiting_agent() -> BaitingAgent:
         try:
             llm_settings = LLMSettings()
             # Single provider handles risk-based model routing internally
-            # (gpt-4.1 for high-risk, gpt-4.1-mini for medium/low)
+            # (gpt-5.5 for high-risk, gpt-5.5-mini for medium/low)
             provider = create_llm_provider(provider="openai", settings=llm_settings)
             _baiting_agent = BaitingAgent(provider)
         except Exception as e:

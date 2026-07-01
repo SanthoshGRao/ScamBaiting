@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     groq_api_key: str = ""
     openai_api_key: str = ""
-    llm_model: str = "gpt-4.1-mini"
+    llm_model: str = "gpt-5.5-mini"
     llm_temperature: float = 0.78
     llm_top_p: float = 0.9
     llm_max_tokens: int = 220
