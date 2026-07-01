@@ -256,7 +256,9 @@ class OpenAIProvider(BaseLLMProvider):
             kwargs["response_format"] = response_format
 
         if model.startswith(("gpt-5", "o1", "o3")):
-            kwargs["max_completion_tokens"] = max_tokens
+            # o1/o3/gpt-5 models use internal reasoning tokens that consume completion budget.
+            # We set max_completion_tokens to a larger threshold (minimum 800) to avoid output token starvation.
+            kwargs["max_completion_tokens"] = max(max_tokens, 800)
             kwargs.pop("temperature", None)
             kwargs.pop("top_p", None)
         else:
