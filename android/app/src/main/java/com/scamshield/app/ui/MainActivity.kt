@@ -189,7 +189,7 @@ class MainActivity : AppCompatActivity() {
         val id = when (tag) {
             "dashboard" -> R.id.nav_dashboard
             "analytics" -> R.id.nav_analytics
-            "simulator" -> R.id.nav_simulator
+            // "simulator" -> R.id.nav_simulator
             "scammers" -> R.id.nav_scammers
             "settings" -> R.id.nav_settings
             else -> R.id.nav_dashboard
@@ -208,10 +208,10 @@ class MainActivity : AppCompatActivity() {
                     loadFragment(AnalyticsFragment(), "analytics")
                     true
                 }
-                R.id.nav_simulator -> {
-                    loadFragment(SimulatorFragment(), "simulator")
-                    true
-                }
+                // R.id.nav_simulator -> {
+                //     loadFragment(SimulatorFragment(), "simulator")
+                //     true
+                // }
                 R.id.nav_scammers -> {
                     loadFragment(ScammersFragment(), "scammers")
                     true

@@ -12,6 +12,7 @@ async def test_baiting():
     agent = BaitingAgent(llm)
 
     request = BaitingRequest(
+        sender_id="test_sender",
         session_id="test_session",
         persona="half_understanding_user",
         goal="waste_time",

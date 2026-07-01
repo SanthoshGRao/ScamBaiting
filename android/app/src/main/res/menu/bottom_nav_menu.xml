@@ -8,10 +8,12 @@
         android:id="@+id/nav_analytics"
         android:icon="@drawable/ic_analytics"
         android:title="Analytics" />
+    <!--
     <item
         android:id="@+id/nav_simulator"
         android:icon="@drawable/ic_chat"
         android:title="Simulator" />
+    -->
     <item
         android:id="@+id/nav_scammers"
         android:icon="@drawable/ic_warning"

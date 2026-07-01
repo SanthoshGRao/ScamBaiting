@@ -357,8 +357,9 @@ class BaitingAgent:
                     "Do NOT continue talking about the old topic they've moved away from."
                 )
 
-            # Count recent questions from our side
-            recent_assistant = [m.content for m in history[-8:] if m.role == "assistant"]
+            # Count recent questions from our side in the last 4 assistant messages (Fix 2)
+            assistant_msgs = [m.content for m in history if m.role == "assistant"]
+            recent_assistant = assistant_msgs[-4:]
             recent_question_count = sum(
                 1 for msg in recent_assistant if "?" in msg
             )
@@ -522,12 +523,42 @@ class BaitingAgent:
                 "You MUST answer or react to their question FIRST. Do NOT deflect with your own questions.\n"
                 "If you don't know the answer in-character, say something plausible — don't just ask more questions back.\n"
             )
+
+        # Fix 3: Build a dedicated topic shift block to place higher in the prompt
+        topic_shift_block = ""
         if topic_shifted:
-            response_priority += (
-                "\n═══ ⚡ TOPIC SHIFT DETECTED ═══\n"
+            topic_shift_block = (
+                "═══ ⚡ TOPIC SHIFT DETECTED ═══\n"
                 "The scammer moved to a new topic. FOLLOW their new topic. "
                 "Do NOT keep talking about the old subject they have already moved past.\n"
+                "This overrides the tactic below for this turn — follow their new topic first, tactic resumes next turn.\n\n"
             )
+
+        # Fix 2: Determine turn intent based on recent question counts
+        assistant_msgs = [m.content for m in request.history if m.role == "assistant"]
+        recent_assistant = assistant_msgs[-4:]
+        recent_question_count = sum(1 for msg in recent_assistant if "?" in msg)
+
+        if asks_us_question:
+            turn_intent = "ANSWER_OR_BLUFF"
+        else:
+            intents = ["STATEMENT", "ANSWER_OR_BLUFF", "QUESTION", "REACT_EMOTION"]
+            if recent_question_count == 0:
+                weights = [0.35, 0.25, 0.25, 0.15]
+            elif recent_question_count == 1:
+                weights = [0.40, 0.30, 0.10, 0.20]
+            else:
+                weights = [0.55, 0.30, 0.00, 0.15]
+            turn_intent = random.choices(intents, weights=weights, k=1)[0]
+
+        # Fix 4: Track the first word of assistant's last message to avoid repetitions
+        last_opener = ""
+        if recent_assistant:
+            last_msg = recent_assistant[-1].strip()
+            if last_msg:
+                words = re.findall(r"\b\w+\b", last_msg)
+                if words:
+                    last_opener = words[0].lower()
 
         current_turn = sum(1 for m in request.history if m.role == "assistant")
         
@@ -557,6 +588,42 @@ class BaitingAgent:
                 f"You MUST behave consistently with this commitment. Do not suddenly complete unrelated actions.\n\n"
             )
 
+        intent_instruction = f"═══ THIS TURN'S INTENT: {turn_intent} ═══\n"
+        if turn_intent == "STATEMENT":
+            intent_instruction += "Make a statement or share an observation in character. Do NOT ask any questions this turn."
+        elif turn_intent == "REACT_EMOTION":
+            intent_instruction += "React emotionally (express confusion, surprise, skepticism, annoyance, or excitement) without asking any questions."
+        elif turn_intent == "QUESTION":
+            intent_instruction += "You may ask exactly ONE question if it fits naturally."
+        elif turn_intent == "ANSWER_OR_BLUFF":
+            answer_mode = random.choice(["SPECIFIC_ANSWER", "BLUFF_OR_HEDGE"])
+            if answer_mode == "SPECIFIC_ANSWER":
+                intent_instruction += (
+                    "Give a plausible, specific in-character answer or confirmation "
+                    "(fabricated details are expected and fine — e.g. fake app names, fake amounts, fake vague confirmations). "
+                    "Do NOT turn the answer into a counter-question."
+                )
+            else:
+                intent_instruction += (
+                    "Hedge or bluff uncertainly (e.g. 'not sure tbh', 'let me check', 'will have to check my app later') "
+                    "rather than giving a direct answer. Do NOT turn the answer into a counter-question."
+                )
+
+        if turn_intent != "QUESTION":
+            intent_instruction += (
+                "\nIMPORTANT: If the active strategy tactic suggests asking a question, "
+                "you MUST express that same intent as a STATEMENT or DEMAND instead of a question. "
+                "For example, instead of asking 'Can you show me proof?', say 'I need to see proof first.' "
+                "Do NOT use a question mark or ask any questions."
+            )
+
+        avoid_opener_block = ""
+        if last_opener:
+            avoid_opener_block = (
+                f"═══ REPETITION PREVENTION ═══\n"
+                f"Do NOT start your reply with the word '{last_opener}'. Choose a different opening word.\n\n"
+            )
+
         system_prompt = (
             "You are roleplaying as a REAL PERSON chatting with someone on WhatsApp. Your primary goal is to behave exactly like this character would behave in the situation. If the conversation naturally continues for a long time because of realism, that is desirable. Do not intentionally optimize for stalling. Prolonging the conversation should happen as a side effect of believable human behaviour.\n\n"
 
@@ -574,11 +641,14 @@ class BaitingAgent:
             "- If they changed the topic → FOLLOW the new topic\n"
             "NEVER ignore what they just said to continue an old thread of conversation.\n\n"
 
+            f"{topic_shift_block}"
+            f"{intent_instruction}\n\n"
+            f"{avoid_opener_block}"
+
             "═══ HUMAN UNDER-EXPLANATION ═══\n"
             "Humans rarely communicate optimally.\n"
             "They often leave things unsaid, assume the other person understands, answer only part of a question, react without explaining, forget to clarify, or stop after making one point.\n"
             "Prefer being incomplete over being comprehensive. Do not try to be helpful. Do not try to cover every angle. Do not try to advance the conversation efficiently.\n\n"
-
             "═══ WHATSAPP STYLE ═══\n"
             "You are sending a WhatsApp reply, not writing dialogue.\n"
             "Most people respond with one thought and stop.\n"
@@ -592,13 +662,11 @@ class BaitingAgent:
             "- emojis should be rare\n"
             "- minor spelling mistakes are acceptable occasionally\n"
             "- never sound polished or professionally written\n\n"
-
             "═══ ONE THOUGHT RULE ═══\n"
             "Each assistant turn should represent exactly ONE conversational intention.\n"
             "Examples of intentions: asking ONE question, answering ONE question, reacting emotionally, expressing confusion, acknowledging what was said, mentioning an obstacle, making an observation, reassuring, apologizing, agreeing, disagreeing.\n"
             "A turn must not contain multiple intentions.\n\n"
             "Multiple WhatsApp bubbles are allowed if you genuinely have two independent thoughts. If one thought is enough, send one bubble.\n\n"
-
             "═══ MESSAGE LENGTH LIMIT ═══\n"
             "Your entire total response must NOT exceed 20 words.\n"
             "Send 1 to 3 short bubbles total.\n"
@@ -606,7 +674,6 @@ class BaitingAgent:
             "If your thought is longer than 20 words, you MUST break it into multiple separate bubbles using |||.\n"
             "Example:\n"
             "\"i checked my account but the money is not there\" (10 words) → \"i checked my account|||but the money is not there\"\n\n"
-
             "═══ QUESTION LIMIT ═══\n"
             "A single assistant turn may contain only ONE question.\n"
             "Do not ask a second question until the previous one has been answered or abandoned.\n"
@@ -614,29 +681,23 @@ class BaitingAgent:
             "\"which company is this? how does this work?\"\n"
             "Good:\n"
             "\"which company is this?\"\n\n"
-
             "═══ COMMITMENT CONSISTENCY ═══\n"
             "If you say you are busy, unavailable, waiting for someone, travelling, charging your phone, or will do something later, you MUST behave consistently in future turns.\n\n"
             "Do not immediately contradict yourself.\n\n"
             "People generally mean what they say, even when delaying.\n\n"
-
             "═══ CONTEXT AWARENESS ═══\n"
             "Use only information that actually appeared in the conversation.\n\n"
             "Do not invent names, amounts, links, IDs, dates, or events.\n\n"
             "If confused, be confused about existing details.\n\n"
             "If the other person repeats themselves, react naturally with mild annoyance, confusion, suspicion, embarrassment, or impatience depending on the character.\n\n"
-
             "═══ CONVERSATION CONTEXT ═══\n"
             f"{context_block}\n\n"
-
             f"═══ CURRENT TACTIC: {strategy} ═══\n"
             f"What to do: {strat_do}\n"
             f"What NOT to do: {strat_dont}\n"
             f"Reply shape: {strat_shape}\n"
             f"IMPORTANT: Apply the tactic AFTER responding to what they said. The tactic shapes HOW you respond, not WHETHER you respond to their message.\n"
-
             f"{response_priority}\n"
-
             "═══ OUTPUT FORMAT ═══\n"
             "Write your response exactly as the user would type it in WhatsApp.\n"
             "To split thoughts into multiple messages, separate them with |||.\n"
@@ -704,11 +765,21 @@ class BaitingAgent:
                 reply_parts = self._maybe_repair_contradiction(reply_parts, had_payment_claim)
                 reply_parts = self._light_cleanup(reply_parts)
                 
-                # Deterministic post-processing: extract ONLY the first thought from the very first segment
-                first_part = reply_parts[0] if reply_parts else "hmm"
-                first_thought = self._extract_first_thought(first_part)
-                processed_parts = [first_thought] if first_thought.strip() else ["hmm"]
-                    
+                # Fix 1: Keep all bubbles returned by _parse_llm_segments(), up to 3
+                processed_parts = []
+                for part in reply_parts:
+                    if part.count('?') > 1:
+                        # Only trim a bubble if IT ITSELF contains more than one "?"
+                        trimmed = self._extract_first_thought(part)
+                        if trimmed.strip():
+                            processed_parts.append(trimmed)
+                    else:
+                        if part.strip():
+                            processed_parts.append(part)
+                if not processed_parts:
+                    processed_parts = ["hmm"]
+
+                # Recompute total_questions across all surviving bubbles
                 total_questions = sum(p.count('?') for p in processed_parts)
                 
                 if total_questions > 1 and attempt < max_attempts - 1:
@@ -716,8 +787,21 @@ class BaitingAgent:
                     continue
                     
                 if total_questions > 1:
-                    # Final attempt failed: use only the first valid thought
-                    processed_parts = [processed_parts[0]]
+                    # Final attempt failed: resolve multiple questions to enforce the 1-question cap
+                    cleaned_parts = []
+                    has_question = False
+                    for part in processed_parts:
+                        if '?' in part:
+                            if not has_question:
+                                cleaned_parts.append(part)
+                                has_question = True
+                            else:
+                                no_q = part.replace('?', '.')
+                                if no_q.strip():
+                                    cleaned_parts.append(no_q)
+                        else:
+                            cleaned_parts.append(part)
+                    processed_parts = cleaned_parts
                     
                 processed_parts = self._enforce_max_words(processed_parts)
                 reply_parts = processed_parts
