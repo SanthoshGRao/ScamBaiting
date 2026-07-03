@@ -106,6 +106,92 @@ DEEP_PERSONAS = {
 }
 
 # ──────────────────────────────────────────────────────────────────
+# PER-PERSONA WRITING STYLE
+# Each persona writes DIFFERENTLY. This is what keeps personas from all
+# sounding like the same lowercase bot. These rules override the generic
+# defaults for the persona in play.
+# ──────────────────────────────────────────────────────────────────
+
+PERSONA_STYLE: dict[str, str] = {
+    "busy_professional": (
+        "Type fast and clipped, almost all lowercase, barely any punctuation. "
+        "Short and a bit impatient. No emojis. Fillers like 'one sec', 'k', 'wait'. "
+        "Sometimes just reply '?' when something is unclear."
+    ),
+    "skeptical_buyer": (
+        "Write in PROPER English with correct capitalisation and full punctuation, "
+        "like an educated professional typing carefully. Complete sentences. No slang, "
+        "no emojis, no typos. Calm and precise. You are the ONE persona who does NOT "
+        "type in lowercase — you write properly."
+    ),
+    "half_understanding_user": (
+        "Type slowly and a little broken. Mix in Hindi words (beta, arre, haan). "
+        "Sometimes send a half sentence and finish it in the next bubble. Confuse tech "
+        "terms. Occasional spelling slips. Polite but clearly struggling with technology."
+    ),
+    "lonely_conversationalist": (
+        "Ramble warmly. Use lots of '...' between thoughts. Go on personal tangents. "
+        "You are allowed to send LONGER messages than others — you like to chat. "
+        "Ask about their life, drift off topic, then loosely wander back."
+    ),
+    "hopeful_opportunity_seeker": (
+        "Eager and earnest. Mostly lowercase but readable. Ask concrete practical "
+        "questions. Sound like you really want this to be real. Few or no emojis."
+    ),
+    "curious_user": (
+        "Gen-z texting: all lowercase, slang ('fr', 'lmao', 'bro', 'ngl', 'nah'), "
+        "sarcastic but not hostile. Emojis like 💀😭 are fine here and only here, used sparingly. "
+        "Short punchy messages."
+    ),
+    "paranoid_tech_worker": (
+        "Casual lowercase texting but you naturally drop precise technical terms. "
+        "Relaxed tone, minimal punctuation, no emojis. Sound unbothered while quietly probing."
+    ),
+    "gullible_grandparent": (
+        "Type very slowly with frequent spelling mistakes and lots of '...'. Call them 'beta'. "
+        "Warm and trusting. Sometimes sign off with 'God bless' or 'take care beta'. "
+        "Occasionally mention needing your glasses or your grandson to help."
+    ),
+}
+
+# bubbles = how many separate WhatsApp messages this persona tends to fire per turn.
+# max_words = soft per-bubble word cap. This is what makes message COUNT feel human
+# and different per persona (a lonely aunty double/triple texts; a busy PM sends one line).
+@dataclass
+class PersonaShape:
+    max_words: int
+    bubble_weights: tuple[float, float, float, float]  # weights for 1,2,3,4 bubbles
+
+PERSONA_SHAPE: dict[str, PersonaShape] = {
+    "busy_professional":        PersonaShape(max_words=14, bubble_weights=(0.6, 0.3, 0.1, 0.0)),
+    "skeptical_buyer":          PersonaShape(max_words=28, bubble_weights=(0.65, 0.3, 0.05, 0.0)),
+    "half_understanding_user":  PersonaShape(max_words=16, bubble_weights=(0.35, 0.35, 0.25, 0.05)),
+    "lonely_conversationalist": PersonaShape(max_words=40, bubble_weights=(0.2, 0.35, 0.3, 0.15)),
+    "hopeful_opportunity_seeker": PersonaShape(max_words=22, bubble_weights=(0.5, 0.35, 0.15, 0.0)),
+    "curious_user":             PersonaShape(max_words=14, bubble_weights=(0.55, 0.35, 0.1, 0.0)),
+    "paranoid_tech_worker":     PersonaShape(max_words=20, bubble_weights=(0.55, 0.35, 0.1, 0.0)),
+    "gullible_grandparent":     PersonaShape(max_words=18, bubble_weights=(0.3, 0.35, 0.25, 0.1)),
+}
+
+_DEFAULT_SHAPE = PersonaShape(max_words=20, bubble_weights=(0.45, 0.35, 0.2, 0.0))
+_DEFAULT_STYLE = (
+    "Mostly lowercase, minimal punctuation, casual contractions. Emojis rare. "
+    "Occasional minor typo. Never sound polished or professionally written."
+)
+
+
+def _persona_style(persona_id: str) -> str:
+    return PERSONA_STYLE.get(persona_id, _DEFAULT_STYLE)
+
+
+def _persona_shape(persona_id: str) -> PersonaShape:
+    return PERSONA_SHAPE.get(persona_id, _DEFAULT_SHAPE)
+
+
+def _pick_bubble_target(shape: PersonaShape) -> int:
+    return random.choices([1, 2, 3, 4], weights=list(shape.bubble_weights), k=1)[0]
+
+# ──────────────────────────────────────────────────────────────────
 # STRATEGY RULES (enhanced)
 # ──────────────────────────────────────────────────────────────────
 
@@ -296,12 +382,20 @@ class BaitingAgent:
             return "Stage: MID. They're pushing hard now. Add more obstacles, confusion, or delays."
         return "Stage: LATE. They're getting frustrated. Keep responses shorter, never give clean wins."
 
-    def _build_context_block(self, history: List[ChatMessage]) -> str:
+    def _build_context_block(self, history: List[ChatMessage], media_summary: str | None = None) -> str:
         """Build a rich context block with entity tracking and conversation state."""
         lines: list[str] = []
 
         # Stage
         lines.append(self._conversation_heat_line(history))
+
+        # Inbound media the scammer just sent (understood via vision)
+        if media_summary:
+            lines.append(
+                f"📷 THE SCAMMER JUST SENT AN IMAGE. {media_summary}. "
+                "React to this image in character as if you actually opened and looked at it. "
+                "Do NOT ignore it. Do NOT say you can't see images."
+            )
 
         # Extract what the scammer has mentioned
         entities = _extract_entities(history)
@@ -425,8 +519,8 @@ class BaitingAgent:
             parts = [p.replace("\n", " ").strip() for p in text.split("|||") if p.strip()]
         else:
             parts = [text.replace("\n", " ").strip()]
-            
-        parts = parts[:3]
+
+        parts = parts[:4]
         return parts if parts else ["hmm one sec"]
 
     def _maybe_repair_contradiction(self, parts: list[str], had_payment_claim: bool) -> list[str]:
@@ -496,8 +590,12 @@ class BaitingAgent:
         persona_desc = DEEP_PERSONAS.get(
             persona_id, DEEP_PERSONAS["busy_professional"]
         )
+        persona_style = _persona_style(persona_id)
+        persona_shape = _persona_shape(persona_id)
+        target_bubbles = _pick_bubble_target(persona_shape)
+        persona_max_words = persona_shape.max_words
         strat_do, strat_dont, strat_shape = self._strategy_lines(strategy)
-        context_block = self._build_context_block(request.history)
+        context_block = self._build_context_block(request.history, request.incoming_media_summary)
 
         # Detect conversational signals for the latest message
         last_user_msg = next((m.content for m in reversed(request.history) if m.role == "user"), "")
@@ -569,10 +667,14 @@ class BaitingAgent:
             
         active_commitment = commitment_state.pending_commitment if commitment_state else None
 
-        temp_state = random.choice([
-            "DISTRACTED", "SHORT_REPLY", "MILDLY_ANNOYED", 
-            "TYPO_HEAVY", "EMOJI_FRIENDLY", "NORMAL"
-        ])
+        # Emoji/typo states would break formal or non-emoji personas, so gate them.
+        _formal_personas = {"skeptical_buyer", "hopeful_opportunity_seeker"}
+        _temp_state_pool = ["DISTRACTED", "SHORT_REPLY", "MILDLY_ANNOYED", "NORMAL"]
+        if persona_id not in _formal_personas:
+            _temp_state_pool.append("TYPO_HEAVY")
+        if persona_id == "curious_user":
+            _temp_state_pool.append("EMOJI_FRIENDLY")
+        temp_state = random.choice(_temp_state_pool)
         state_instruction = ""
         if temp_state != "NORMAL":
             state_instruction = (
@@ -649,31 +751,24 @@ class BaitingAgent:
             "Humans rarely communicate optimally.\n"
             "They often leave things unsaid, assume the other person understands, answer only part of a question, react without explaining, forget to clarify, or stop after making one point.\n"
             "Prefer being incomplete over being comprehensive. Do not try to be helpful. Do not try to cover every angle. Do not try to advance the conversation efficiently.\n\n"
-            "═══ WHATSAPP STYLE ═══\n"
+            "═══ YOUR TEXTING STYLE (specific to THIS character) ═══\n"
             "You are sending a WhatsApp reply, not writing dialogue.\n"
-            "Most people respond with one thought and stop.\n"
-            "The best reply is often incomplete.\n"
-            "Short replies are normal. Long replies are normal.\n"
-            "What matters is that each turn feels like something a real person would actually send.\n"
-            "- mostly lowercase\n"
-            "- minimal punctuation\n"
-            "- contractions and casual wording\n"
-            "- occasional filler words like \"oh\", \"hmm\", \"wait\", \"ya\", \"okay\"\n"
-            "- emojis should be rare\n"
-            "- minor spelling mistakes are acceptable occasionally\n"
-            "- never sound polished or professionally written\n\n"
+            f"{persona_style}\n"
+            "Write EXACTLY the way this specific person would text. Two different people never text the same way — "
+            "your grammar, casing, punctuation, and vocabulary must match the character above, not a generic chatbot.\n"
+            "What matters is that each turn feels like something a real person would actually send.\n\n"
             "═══ ONE THOUGHT RULE ═══\n"
-            "Each assistant turn should represent exactly ONE conversational intention.\n"
+            "Each WhatsApp bubble should carry roughly ONE conversational intention.\n"
             "Examples of intentions: asking ONE question, answering ONE question, reacting emotionally, expressing confusion, acknowledging what was said, mentioning an obstacle, making an observation, reassuring, apologizing, agreeing, disagreeing.\n"
-            "A turn must not contain multiple intentions.\n\n"
-            "Multiple WhatsApp bubbles are allowed if you genuinely have two independent thoughts. If one thought is enough, send one bubble.\n\n"
-            "═══ MESSAGE LENGTH LIMIT ═══\n"
-            "Your entire total response must NOT exceed 20 words.\n"
-            "Send 1 to 3 short bubbles total.\n"
-            "A single WhatsApp bubble must NOT exceed 20 words.\n"
-            "If your thought is longer than 20 words, you MUST break it into multiple separate bubbles using |||.\n"
+            "Chatty characters may let one thought spill into the next; terse characters send a single clipped line.\n\n"
+            "═══ HOW MANY MESSAGES TO SEND ═══\n"
+            f"For THIS turn, send about {target_bubbles} separate WhatsApp bubble(s), split with |||.\n"
+            "This is a natural target, not a rule — real people are inconsistent. Sometimes one word is enough; "
+            "sometimes you fire off a few quick ones in a row. Vary it so it never feels formulaic.\n"
+            f"Keep each single bubble under about {persona_max_words} words. If a thought runs longer, break it "
+            "across bubbles with ||| rather than cramming one long message.\n"
             "Example:\n"
-            "\"i checked my account but the money is not there\" (10 words) → \"i checked my account|||but the money is not there\"\n\n"
+            "\"i checked my account but the money is not there\" → \"i checked my account|||but the money is not there\"\n\n"
             "═══ QUESTION LIMIT ═══\n"
             "A single assistant turn may contain only ONE question.\n"
             "Do not ask a second question until the previous one has been answered or abandoned.\n"
@@ -803,7 +898,12 @@ class BaitingAgent:
                             cleaned_parts.append(part)
                     processed_parts = cleaned_parts
                     
-                processed_parts = self._enforce_max_words(processed_parts)
+                processed_parts = self._enforce_max_words(processed_parts, persona_max_words)
+                # Keep the bubble count human: cap at 4, and don't let a terse
+                # persona spray more bubbles than it naturally would this turn.
+                bubble_cap = min(4, max(target_bubbles + 1, 1))
+                if len(processed_parts) > bubble_cap:
+                    processed_parts = processed_parts[:bubble_cap]
                 reply_parts = processed_parts
                 break
             reply_text = " ".join(reply_parts) if len(reply_parts) > 1 else reply_parts[0]

@@ -30,6 +30,18 @@ class BaitingRequest(BaseModel):
     offline_analytics: List[OfflineAnalyticsSyncDto] = Field(default_factory=list, description="Offline analytics events to sync")
     use_dynamic_delay: bool = Field(default=True, description="Compute delays dynamically based on length")
     fixed_delay_seconds: int = Field(default=3, description="Fixed delay to use if use_dynamic_delay is False")
+    incoming_image_base64: Optional[str] = Field(
+        default=None,
+        description="Base64/data-URI of an image the scammer just sent, to be understood via vision",
+    )
+    incoming_media_type: Optional[str] = Field(
+        default=None,
+        description="Type hint for the inbound media: image, video, document, etc.",
+    )
+    incoming_media_summary: Optional[str] = Field(
+        default=None,
+        description="Server-populated one-line understanding of inbound media, injected into reply context",
+    )
 
 class BaitingResponse(BaseModel):
     """Generated response to send to the scammer."""
@@ -62,4 +74,8 @@ class BaitingResponse(BaseModel):
     image_context: str | None = Field(
         default=None,
         description="Context type: payment_proof, error_screen, otp_screen, receipt",
+    )
+    incoming_media_analysis: Optional[dict] = Field(
+        default=None,
+        description="Understanding of the image the scammer sent (caption, ocr, flags, summary)",
     )

@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import random
+import re
 import time
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -16,6 +19,8 @@ from app.db.session import get_db
 from app.models.baiting_models import BaitingRequest, BaitingResponse
 from app.agents.strategy.baiting_agent import BaitingAgent
 from app.agents.strategy.strategy_agent import StrategyAgent
+from app.agents.detection.vision_analyzer import analyze_image
+from app.agents.detection.media_analyzer import MediaAnalyzer
 from app.api.tracking_routes import create_tracking_link, get_tracking_url
 from app.deception.engine import DeceptionEngine, IMAGE_REQUEST_PATTERN, extract_payment_context
 from app.providers.llm_classifier import create_llm_provider, LLMSettings
@@ -36,6 +41,40 @@ _strategy_selector = StrategyAgent(llm_provider=None)
 
 _reply_cache: dict[str, dict] = {}
 _CACHE_TTL = 300  # 5 minutes
+
+# Signals that a fake payment screenshot would fit naturally right now.
+_PROACTIVE_IMG_CONTEXT = re.compile(
+    r"\b(paid|sent|transfer|transferred|screenshot|proof|receipt|done|"
+    r"upi|gpay|phonepe|paytm|amount|rs\.?|₹|payment)\b",
+    re.I,
+)
+# How often the AI volunteers a screenshot unprompted when it fits (keeps it rare).
+_PROACTIVE_IMG_PROBABILITY = 0.18
+_PROACTIVE_IMG_MIN_USER_MSGS = 4
+
+
+def _should_send_proactive_image(request: BaitingRequest, reply_text: str) -> bool:
+    """Decide whether to volunteer a fake screenshot without being asked.
+
+    Only fires when (a) the conversation has warmed up, (b) money/payment is in
+    play, and (c) a low probability roll passes — so images stay occasional and
+    contextual rather than spammy or robotic.
+    """
+    n_user_msgs = sum(1 for m in request.history if m.role == "user")
+    if n_user_msgs < _PROACTIVE_IMG_MIN_USER_MSGS:
+        return False
+
+    # Our own reply implying we paid/sent is the strongest cue to attach "proof".
+    reply_implies_payment = bool(_PROACTIVE_IMG_CONTEXT.search(reply_text or ""))
+    recent_blob = " ".join(m.content for m in request.history[-4:])
+    scammer_financial = bool(_PROACTIVE_IMG_CONTEXT.search(recent_blob))
+    if not (reply_implies_payment or scammer_financial):
+        return False
+
+    # Bias toward sending when WE just claimed payment; otherwise stay rarer.
+    probability = 0.45 if reply_implies_payment else _PROACTIVE_IMG_PROBABILITY
+    return random.random() < probability
+
 
 def _get_idempotency_key(request: BaitingRequest) -> str:
     last_user_index = max((i for i, m in enumerate(request.history) if m.role == "user"), default=-1)
@@ -101,6 +140,41 @@ async def generate_reply(
         )
         bait_request = request.model_copy(update={"current_strategy": selection.strategy})
 
+        # --- Inbound Media Understanding (vision) ---
+        # If the scammer sent an image, "read" it so the reply can respond in
+        # context. Heavy model work runs off the event loop and degrades safely.
+        incoming_media_analysis = None
+        if request.incoming_image_base64:
+            surrounding = " ".join(m.content for m in request.history[-3:])
+            try:
+                understanding = await run_in_threadpool(
+                    analyze_image, request.incoming_image_base64, surrounding
+                )
+                risk = MediaAnalyzer().analyze(
+                    media_type=request.incoming_media_type or "image",
+                    surrounding_text=surrounding,
+                )
+                incoming_media_analysis = {
+                    "method": understanding.method,
+                    "caption": understanding.caption,
+                    "ocr_text": understanding.ocr_text,
+                    "summary": understanding.summary,
+                    "flags": understanding.flags,
+                    "looks_like_payment": understanding.looks_like_payment,
+                    "looks_like_qr": understanding.looks_like_qr,
+                    "risk_level": risk.risk_level,
+                    "risk_score": risk.risk_score,
+                }
+                bait_request = bait_request.model_copy(
+                    update={"incoming_media_summary": understanding.summary}
+                )
+                logger.info(
+                    "Analyzed inbound image for session=%s: method=%s, flags=%s",
+                    request.session_id, understanding.method, understanding.flags,
+                )
+            except Exception as vis_err:
+                logger.warning("Inbound media analysis failed: %s", vis_err)
+
         # --- Tracking Link Injection ---
         tracking_url = None
         n_user_msgs = sum(1 for m in request.history if m.role == "user")
@@ -132,21 +206,22 @@ async def generate_reply(
 
         response = await _generate(agent, bait_request, tracking_url=tracking_url)
 
-        # --- Image Generation: Check if scammer asked for a screenshot ---
+        # --- Image Generation: on explicit request OR proactively, in context ---
         image_base64 = None
         image_context = None
         last_user_msg = next(
             (m.content for m in reversed(request.history) if m.role == "user"), ""
         )
-        if IMAGE_REQUEST_PATTERN.search(last_user_msg):
+        explicitly_requested = bool(IMAGE_REQUEST_PATTERN.search(last_user_msg))
+        if explicitly_requested or _should_send_proactive_image(request, response.reply_text):
             try:
                 payment_ctx = extract_payment_context(request.history)
                 engine = DeceptionEngine()
                 image_base64 = engine.generate_contextual_screenshot(payment_ctx)
                 image_context = payment_ctx.get("screenshot_type", "payment_proof")
                 logger.info(
-                    "Generated fake screenshot for session=%s: type=%s",
-                    request.session_id, image_context,
+                    "Generated fake screenshot for session=%s: type=%s (proactive=%s)",
+                    request.session_id, image_context, not explicitly_requested,
                 )
             except Exception as img_err:
                 logger.warning("Image generation failed: %s", img_err)
@@ -156,6 +231,7 @@ async def generate_reply(
             "tracking_url": tracking_url,
             "image_base64": image_base64,
             "image_context": image_context,
+            "incoming_media_analysis": incoming_media_analysis,
         })
         strategy_for_session = selection.strategy
 
