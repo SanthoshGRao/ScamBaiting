@@ -111,9 +111,38 @@ def create_tracking_link(
     return link
 
 
-def get_tracking_url(token: str) -> str:
-    """Build the full public tracking URL."""
-    base = settings.tracking_base_url.rstrip("/")
+def base_url_from_request(request: Request) -> str:
+    """Derive the public base URL from the incoming request itself.
+
+    This is the domain the client actually reached us on (e.g.
+    https://scambaiting.onrender.com), which is guaranteed reachable AND is the
+    same instance whose database holds the tracking token. Using it avoids
+    'link not found' bugs caused by a mismatched configured domain (a dead dev
+    tunnel, or a RENDER_EXTERNAL_URL that differs from the app's real host).
+    Honors reverse-proxy headers set by Render/most PaaS platforms.
+    """
+    proto = (
+        request.headers.get("x-forwarded-proto")
+        or request.url.scheme
+        or "https"
+    ).split(",")[0].strip()
+    host = (
+        request.headers.get("x-forwarded-host")
+        or request.headers.get("host")
+        or request.url.netloc
+    ).split(",")[0].strip()
+    if not host:
+        return settings.tracking_base_url.rstrip("/")
+    return f"{proto}://{host}".rstrip("/")
+
+
+def get_tracking_url(token: str, base_url: str | None = None) -> str:
+    """Build the full public tracking URL.
+
+    When [base_url] is provided (derived from the live request) it wins over the
+    statically configured domain, so links always point at a reachable host.
+    """
+    base = (base_url or settings.tracking_base_url).rstrip("/")
     return f"{base}/t/{token}"
 
 

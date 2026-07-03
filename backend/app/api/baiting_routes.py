@@ -9,7 +9,7 @@ import logging
 import random
 import re
 import time
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -21,7 +21,7 @@ from app.agents.strategy.baiting_agent import BaitingAgent
 from app.agents.strategy.strategy_agent import StrategyAgent
 from app.agents.detection.vision_analyzer import analyze_image
 from app.agents.detection.media_analyzer import MediaAnalyzer
-from app.api.tracking_routes import create_tracking_link, get_tracking_url
+from app.api.tracking_routes import create_tracking_link, get_tracking_url, base_url_from_request
 from app.deception.engine import DeceptionEngine, IMAGE_REQUEST_PATTERN, extract_payment_context
 from app.providers.llm_classifier import create_llm_provider, LLMSettings
 from app.security.auth import get_current_user
@@ -105,6 +105,7 @@ def get_baiting_agent() -> BaitingAgent:
 )
 async def generate_reply(
     request: BaitingRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> BaitingResponse:
@@ -198,7 +199,9 @@ async def generate_reply(
                     sender_id=request.sender_id,
                     context_type=ctx,
                 )
-                tracking_url = get_tracking_url(link.token)
+                tracking_url = get_tracking_url(
+                    link.token, base_url=base_url_from_request(http_request)
+                )
                 logger.info(
                     "Tracking link created for session=%s: %s (type=%s)",
                     request.session_id, tracking_url, ctx,
