@@ -115,7 +115,8 @@ DEEP_PERSONAS = {
 PERSONA_STYLE: dict[str, str] = {
     "busy_professional": (
         "Type fast and clipped, almost all lowercase, barely any punctuation. "
-        "Short and a bit impatient. No emojis. Fillers like 'one sec', 'k', 'wait'. "
+        "Short and a bit impatient. Fillers like 'one sec', 'k', 'wait'. "
+        "Emojis very rarely (like 🙄 or 😂 once in a while, not most messages). "
         "Sometimes just reply '?' when something is unclear."
     ),
     "skeptical_buyer": (
@@ -127,31 +128,34 @@ PERSONA_STYLE: dict[str, str] = {
     "half_understanding_user": (
         "Type slowly and a little broken. Mix in Hindi words (beta, arre, haan). "
         "Sometimes send a half sentence and finish it in the next bubble. Confuse tech "
-        "terms. Occasional spelling slips. Polite but clearly struggling with technology. No emojis."
+        "terms. Occasional spelling slips. Polite but clearly struggling with technology. "
+        "A simple emoji like 🙏 or 😅 very occasionally, never often."
     ),
     "lonely_conversationalist": (
         "Ramble warmly. Use lots of '...' between thoughts. Go on personal tangents. "
         "You are allowed to send LONGER messages than others — you like to chat. "
-        "Ask about their life, drift off topic, then loosely wander back. No emojis."
+        "Ask about their life, drift off topic, then loosely wander back. "
+        "A warm emoji like 😊 now and then, not every message."
     ),
     "hopeful_opportunity_seeker": (
         "Eager and earnest. Mostly lowercase but readable. Ask concrete practical "
-        "questions. Sound like you really want this to be real. Few or no emojis."
+        "questions. Sound like you really want this to be real. Emojis rare (a hopeful 🙂 occasionally)."
     ),
     "curious_user": (
         "Gen-z texting: all lowercase, slang ('fr', 'lmao', 'bro', 'ngl', 'nah'), "
-        "sarcastic but not hostile. You're the only persona allowed an emoji at all, and even then "
-        "rarely — at most one 💀 or 😭 every several messages, never more than one per message. "
+        "sarcastic but not hostile. Emojis like 💀 or 😭 fit here but still use them sparingly — "
+        "at most one every few messages, never more than one per message. "
         "Short punchy messages."
     ),
     "paranoid_tech_worker": (
         "Casual lowercase texting but you naturally drop precise technical terms. "
-        "Relaxed tone, minimal punctuation, no emojis. Sound unbothered while quietly probing."
+        "Relaxed tone, minimal punctuation. Emojis almost never. Sound unbothered while quietly probing."
     ),
     "gullible_grandparent": (
         "Type very slowly with frequent spelling mistakes and lots of '...'. Call them 'beta'. "
         "Warm and trusting. Sometimes sign off with 'God bless' or 'take care beta'. "
-        "Occasionally mention needing your glasses or your grandson to help. No emojis."
+        "Occasionally mention needing your glasses or your grandson to help. "
+        "A sweet 🙏 or 😊 once in a while."
     ),
 }
 
@@ -198,20 +202,23 @@ def _pick_bubble_target(shape: PersonaShape) -> int:
 
 STRATEGY_DONT: dict[str, str] = {
     "CONFUSION": "Do not summarize their instructions correctly. Mix up details.",
-    "DELAY": "Do not invent contradictory stories. Keep the same excuse thread going.",
-    "FAKE_COMPLIANCE": "Never confirm success. Always partial progress with a realistic error.",
+    "DELAY": "Do not invent contradictory stories. Do NOT reuse the same excuse you already gave.",
+    "FAKE_COMPLIANCE": "Never confirm success. Don't invent a new tech-glitch every turn — reuse or evolve the current problem.",
     "AGGRESSION": "No long lectures. One sharp doubt, then wait.",
     "DERAILMENT": "Don't fully comply. Tangent into something personal, then half-return.",
-    "ESCALATION": "Don't accept vague reassurance. Demand one specific proof.",
+    "ESCALATION": "Don't accept vague reassurance. Ask for proof ONCE — do not keep repeating the same demand.",
 }
 
+# These describe the tactic's FLAVOUR, not a mandatory template. The excuse/proof
+# beats are optional — only use them when they haven't just been used (the
+# anti-repetition guards enforce this). Most turns can just be a plain human reply.
 STRATEGY_SHAPE: dict[str, str] = {
-    "CONFUSION": "mix up a detail they said + ask a confused question",
-    "DELAY": "mention a real-life blocker + say when you'll be back",
-    "FAKE_COMPLIANCE": "say you're trying + describe a specific error + ask them to help",
-    "AGGRESSION": "express doubt + challenge their legitimacy",
-    "DERAILMENT": "bring up something random from your life + loosely connect back",
-    "ESCALATION": "demand one piece of official proof + mention what you'll do if they can't provide it",
+    "CONFUSION": "mix up a detail they said, or ask one confused question — or just sound lost",
+    "DELAY": "if you haven't stalled recently, give ONE brief real-life reason; otherwise just reply short and vague",
+    "FAKE_COMPLIANCE": "sound like you're going along; mention a snag only if you haven't already",
+    "AGGRESSION": "express doubt or challenge their legitimacy, briefly",
+    "DERAILMENT": "drift to something offhand, then loosely connect back — sparingly",
+    "ESCALATION": "if you haven't already, ask once for one piece of proof; don't nag",
 }
 
 # ──────────────────────────────────────────────────────────────────
@@ -244,6 +251,46 @@ def _extract_entities(history: List[ChatMessage]) -> dict[str, list[str]]:
     for k in entities:
         entities[k] = list(dict.fromkeys(entities[k]))[:5]
     return entities
+
+
+# ──────────────────────────────────────────────────────────────────
+# REPETITION GUARDS — the two things that most made the bot obvious:
+#   1) inventing a "busy / meeting / phone / tech-glitch" excuse EVERY turn
+#   2) repeating the same demand ("send your id / proof / official name")
+# We detect these in our own recent replies and tell the model to stop.
+# ──────────────────────────────────────────────────────────────────
+
+_EXCUSE_RE = re.compile(
+    r"\b(meet(?:ing|ng)?|call|boss|office|review|busy|charg(?:e|ing|er)|battery|"
+    r"network|spinning|spinner|loading|hang(?:ing|s)?|stuck|glitch|coffee|"
+    r"one sec|two sec|2 sec|driving|drive|lunch|later|hold on)\b",
+    re.I,
+)
+
+_DEMAND_RE = re.compile(
+    r"\b(employee id|supervisor|company (?:id|name)|official (?:id|proof|name|verif)|"
+    r"proof|reference number|complaint (?:number|id)|badge|prove|verify (?:your|who)|"
+    r"or i(?:'m| am)? (?:done|stopping|stop)|otherwise i)\b",
+    re.I,
+)
+
+
+def _count_recent(pattern: re.Pattern, history: List[ChatMessage], turns: int = 4) -> int:
+    """How many of our last `turns` assistant messages matched `pattern`."""
+    assistant_msgs = [m.content for m in history if m.role == "assistant"]
+    return sum(1 for msg in assistant_msgs[-turns:] if pattern.search(msg))
+
+
+_AI_ACCUSATION_RE = re.compile(
+    r"\b(you(?:'re| are|r)?\s*(?:an?\s*)?(?:ai|a\.?i\.?|bot|robot|chatbot|"
+    r"artificial intelligence|gpt|chatgpt|automated|machine)|"
+    r"are you (?:a )?(?:ai|bot|human|real)|is this (?:a )?bot|not (?:a )?human)\b",
+    re.I,
+)
+
+
+def _scammer_accuses_ai(text: str) -> bool:
+    return bool(_AI_ACCUSATION_RE.search(text))
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -389,6 +436,32 @@ class BaitingAgent:
 
         # Stage
         lines.append(self._conversation_heat_line(history))
+
+        # ── Anti-repetition: the two habits that expose the bot ──
+        if _count_recent(_EXCUSE_RE, history, turns=3) >= 2:
+            lines.append(
+                "🚫 STOP MAKING EXCUSES. You've already blamed being busy / in a meeting / "
+                "phone / network / a tech glitch in your recent messages. Do NOT invent another "
+                "excuse this turn. Just reply plainly and briefly — answer, react, or push back "
+                "WITHOUT explaining why you're slow. Real people don't narrate their day every text."
+            )
+        if _count_recent(_DEMAND_RE, history, turns=3) >= 2:
+            lines.append(
+                "🚫 STOP REPEATING THE SAME DEMAND. You've already asked for their id / proof / "
+                "official name more than once. Do NOT ask for it again in the same way. Either drop "
+                "it, change the subject, or react to what they actually said instead."
+            )
+
+        # Scammer thinks we're a bot — handle it like an annoyed real person, not by
+        # doubling down on the script.
+        last_user_now = next((m.content for m in reversed(history) if m.role == "user"), "")
+        if last_user_now and _scammer_accuses_ai(last_user_now):
+            lines.append(
+                "🤖 THEY ACCUSED YOU OF BEING AN AI/BOT. React like a real irritated human would: "
+                "brush it off casually, be a bit offended or amused, or ignore it and carry on — "
+                "keep it SHORT and natural. Do NOT over-explain, do NOT list reasons you're human, "
+                "do NOT suddenly get very formal. One quick dismissive line is best."
+            )
 
         # Inbound media the scammer just sent (understood via vision)
         if media_summary:

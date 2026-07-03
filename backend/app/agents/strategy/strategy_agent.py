@@ -79,6 +79,11 @@ Return JSON:
         self._suspicion_detector = SuspicionDetector()
         self._stealth = StealthOptimizer()
         self._strategy_history: dict[str, list[str]] = {}
+        # Per-session sticky strategy: {session_id: {"strategy": str, "turns_left": int}}.
+        # A real person holds a consistent stance for several messages — flipping the
+        # tactic every single turn is what makes the bot obvious. We commit to a chosen
+        # strategy for a short run before reconsidering.
+        self._strategy_lock: dict[str, dict] = {}
 
     async def select_strategy(
         self,
@@ -103,10 +108,25 @@ Return JSON:
                 suspicion.score,
             )
             self._record_strategy(session_id, emergency)
+            # Re-commit for a couple of turns so the recovery stance is consistent.
+            self._strategy_lock[session_id] = {"strategy": emergency, "turns_left": random.randint(1, 2)}
             return StrategySelection(
                 strategy=emergency,
                 reasoning=f"Emergency switch due to HIGH suspicion",
                 switch_confidence=0.95,
+            )
+
+        # Sticky strategy: if we committed to a strategy recently, hold it (unless
+        # suspicion just spiked, handled above). This keeps the persona's stance
+        # coherent across a run of messages instead of flip-flopping every turn.
+        lock = self._strategy_lock.get(session_id)
+        if lock and lock.get("turns_left", 0) > 0:
+            lock["turns_left"] -= 1
+            self._record_strategy(session_id, lock["strategy"])
+            return StrategySelection(
+                strategy=lock["strategy"],
+                reasoning="holding strategy for consistency",
+                switch_confidence=0.5,
             )
 
         # 2. Analyze state
@@ -139,11 +159,17 @@ Return JSON:
                 stage, patience, current_strategy, suspicion.level
             )
 
-        # 🔥 ADD RANDOMNESS (important)
-        if random.random() < 0.15:
+        # Small chance of variation (kept low so behaviour stays coherent).
+        if random.random() < 0.06:
             selection.strategy = random.choice(list(STRATEGY_RULES.keys()))
             selection.reasoning = "random variation"
 
+        # Commit to this strategy for a short run (3-5 turns total incl. this one)
+        # so the persona doesn't change tactics every single message.
+        self._strategy_lock[session_id] = {
+            "strategy": selection.strategy,
+            "turns_left": random.randint(2, 4),
+        }
         self._record_strategy(session_id, selection.strategy)
         return selection
 
@@ -222,12 +248,10 @@ Return JSON:
             strategy = "DELAY"
             reason = "default"
 
-        # ✅ FIX: random fallback instead of fixed
-        if strategy == current and strategy != "CONFUSION":
-            alternatives = [s for s in STRATEGY_RULES if s != current]
-            if alternatives:
-                strategy = random.choice(alternatives)
-
+        # NOTE: we intentionally do NOT force a switch when strategy == current.
+        # Strategy stickiness (via _strategy_lock) now owns consistency; forcing a
+        # different tactic here was a key cause of the turn-by-turn tonal whiplash
+        # that made the bot obvious.
         return StrategySelection(
             strategy=strategy,
             reasoning=reason,
