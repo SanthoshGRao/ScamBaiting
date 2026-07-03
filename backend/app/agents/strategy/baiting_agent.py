@@ -127,12 +127,12 @@ PERSONA_STYLE: dict[str, str] = {
     "half_understanding_user": (
         "Type slowly and a little broken. Mix in Hindi words (beta, arre, haan). "
         "Sometimes send a half sentence and finish it in the next bubble. Confuse tech "
-        "terms. Occasional spelling slips. Polite but clearly struggling with technology."
+        "terms. Occasional spelling slips. Polite but clearly struggling with technology. No emojis."
     ),
     "lonely_conversationalist": (
         "Ramble warmly. Use lots of '...' between thoughts. Go on personal tangents. "
         "You are allowed to send LONGER messages than others — you like to chat. "
-        "Ask about their life, drift off topic, then loosely wander back."
+        "Ask about their life, drift off topic, then loosely wander back. No emojis."
     ),
     "hopeful_opportunity_seeker": (
         "Eager and earnest. Mostly lowercase but readable. Ask concrete practical "
@@ -140,7 +140,8 @@ PERSONA_STYLE: dict[str, str] = {
     ),
     "curious_user": (
         "Gen-z texting: all lowercase, slang ('fr', 'lmao', 'bro', 'ngl', 'nah'), "
-        "sarcastic but not hostile. Emojis like 💀😭 are fine here and only here, used sparingly. "
+        "sarcastic but not hostile. You're the only persona allowed an emoji at all, and even then "
+        "rarely — at most one 💀 or 😭 every several messages, never more than one per message. "
         "Short punchy messages."
     ),
     "paranoid_tech_worker": (
@@ -150,7 +151,7 @@ PERSONA_STYLE: dict[str, str] = {
     "gullible_grandparent": (
         "Type very slowly with frequent spelling mistakes and lots of '...'. Call them 'beta'. "
         "Warm and trusting. Sometimes sign off with 'God bless' or 'take care beta'. "
-        "Occasionally mention needing your glasses or your grandson to help."
+        "Occasionally mention needing your glasses or your grandson to help. No emojis."
     ),
 }
 
@@ -535,6 +536,29 @@ class BaitingAgent:
         ]
         return repaired[: max(1, min(len(parts), 2))]
 
+    @staticmethod
+    def _repair_tracking_link(parts: list[str], tracking_url: str) -> list[str]:
+        """Guarantee the real tracking link reaches the scammer.
+
+        The model is asked to paste the exact URL, but small/cheap models sometimes
+        copy a leftover placeholder token (e.g. literal "{url}") instead of the real
+        link, which reads as a broken link on the scammer's side. If the real URL is
+        missing, swap any placeholder-looking token for it, or append it as its own
+        bubble as a last resort.
+        """
+        if any(tracking_url in p for p in parts):
+            return parts
+
+        # Only matches bracket-wrapped placeholders ({url}, [link], …), never the
+        # plain English word "link" that can legitimately appear in a sentence.
+        placeholder_re = re.compile(r"[\{\[]\s*(?:url|link)\s*[\}\]]", re.I)
+        for i, p in enumerate(parts):
+            if placeholder_re.search(p):
+                parts[i] = placeholder_re.sub(tracking_url, p)
+                return parts
+
+        return parts + [tracking_url]
+
     def _light_cleanup(self, parts: list[str]) -> list[str]:
         """Minimal cleanup — only remove truly AI-sounding artifacts, preserve natural text."""
         cleaned = []
@@ -804,9 +828,9 @@ class BaitingAgent:
         if tracking_url:
             system_prompt += (
                 f"\n\n═══ TRACKING LINK ═══\n"
-                f"Work this link into your reply naturally: {tracking_url}\n"
-                "Examples: 'i put the screenshot here check {url}', 'ok see this {url}'\n"
-                "Make it fit the conversation. Don't sound promotional."
+                f"Paste this EXACT link somewhere in your reply, unchanged, no placeholder text: {tracking_url}\n"
+                f"Example: 'i put the screenshot here check {tracking_url}' or 'ok see this {tracking_url}'\n"
+                "Do not shorten, rewrite, or wrap it. Make it fit the conversation. Don't sound promotional."
             )
 
         collapsed_history = []
@@ -906,6 +930,10 @@ class BaitingAgent:
                     processed_parts = processed_parts[:bubble_cap]
                 reply_parts = processed_parts
                 break
+
+            if tracking_url:
+                reply_parts = self._repair_tracking_link(reply_parts, tracking_url)
+
             reply_text = " ".join(reply_parts) if len(reply_parts) > 1 else reply_parts[0]
 
             if not active_commitment:

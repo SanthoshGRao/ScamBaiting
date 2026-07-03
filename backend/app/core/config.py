@@ -1,7 +1,20 @@
 from __future__ import annotations
 
+import os
+
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+
+def _default_tracking_base_url() -> str:
+    """Prefer Render's auto-populated public URL so tracking links are always
+    reachable in production without manual config. Falls back to the known
+    deployed backend domain (what the Android app itself talks to) rather than
+    a personal dev tunnel, which would produce dead links for real scammers."""
+    return (
+        os.environ.get("RENDER_EXTERNAL_URL")
+        or "https://scambaiting.onrender.com"
+    )
 
 
 class Settings(BaseSettings):
@@ -27,8 +40,8 @@ class Settings(BaseSettings):
     llm_top_p: float = 0.9
     llm_max_tokens: int = 220
 
-    # Tracking links
-    tracking_base_url: str = "https://shanel-unretributory-knuckly.ngrok-free.dev"
+    # Tracking links — TRACKING_BASE_URL env var always wins if set explicitly.
+    tracking_base_url: str = Field(default_factory=_default_tracking_base_url)
     tracking_link_threshold: int = 6  # Min user messages before sending a tracking link
 
     model_config = {
