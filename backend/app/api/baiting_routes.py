@@ -89,8 +89,8 @@ def get_baiting_agent() -> BaitingAgent:
         try:
             llm_settings = LLMSettings()
             # Single provider handles risk-based model routing internally
-            # (gpt-5.5 for high-risk, gpt-5.5-mini for medium/low)
-            provider = create_llm_provider(provider="openai", settings=llm_settings)
+            # (gemini-2.5-pro for high-risk, gemini-3.5-flash-lite for medium/low)
+            provider = create_llm_provider(provider="gemini", settings=llm_settings)
             _baiting_agent = BaitingAgent(provider)
         except Exception as e:
             logger.error("Failed to init BaitingAgent: %s", e)

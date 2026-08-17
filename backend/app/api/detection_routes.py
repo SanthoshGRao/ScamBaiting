@@ -49,9 +49,9 @@ def _get_detection_llm_chain() -> DetectionService | None:
             return _detection_llm_chain
         try:
             llm_settings = LLMSettings()
-            groq_settings = LLMSettings(llm_model=llm_settings.detection_groq_model)
+            gemini_settings = LLMSettings(llm_model=llm_settings.detection_gemini_model)
             openai_settings = LLMSettings(llm_model=llm_settings.detection_openai_fallback_model)
-            primary = create_llm_provider(provider="groq", settings=groq_settings)
+            primary = create_llm_provider(provider="gemini", settings=gemini_settings)
             backup = create_llm_provider(provider="openai", settings=openai_settings)
             _detection_llm_chain = DetectionService(
                 primary_provider=primary,

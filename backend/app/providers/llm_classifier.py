@@ -31,11 +31,15 @@ class LLMSettings(BaseSettings):
     """LLM provider configuration."""
     groq_api_key: str = Field(default="", description="Groq API key")
     openai_api_key: str = Field(default="", description="OpenAI API key")
+    gemini_api_key: str = Field(default="", description="Gemini API key")
     llm_model: str = Field(default="gpt-5.5-mini", description="OpenAI model ID")
     detection_groq_model: str = Field(default="llama-3.1-8b-instant")
     detection_openai_fallback_model: str = Field(default="gpt-5.5-mini")
+    detection_gemini_model: str = Field(default="gemini-3.5-flash-lite")
     response_openai_high_model: str = Field(default="gpt-5.5")
     response_openai_medium_model: str = Field(default="gpt-5.5-mini")
+    response_gemini_high_model: str = Field(default="gemini-2.5-pro")
+    response_gemini_medium_model: str = Field(default="gemini-3.5-flash-lite")
     llm_temperature: float = Field(default=0.78, ge=0.0, le=2.0)
     llm_top_p: float = Field(default=0.9, ge=0.0, le=1.0)
     llm_max_tokens: int = Field(default=220, ge=32, le=4096)
@@ -520,6 +524,192 @@ class GroqProvider(BaseLLMProvider):
         return (response.choices[0].message.content or "").strip()
 
 
+class GeminiProvider(BaseLLMProvider):
+    """Gemini provider via Google's unified GenAI SDK (google-genai)."""
+
+    def __init__(self, settings: LLMSettings | None = None) -> None:
+        self._settings = settings or LLMSettings()
+        self._client = None
+        self._available = self._init_client()
+
+    def _init_client(self) -> bool:
+        if not self._settings.gemini_api_key:
+            logger.error("GEMINI_API_KEY not set.")
+            return False
+        try:
+            from google import genai
+
+            self._client = genai.Client(api_key=self._settings.gemini_api_key)
+            logger.info(
+                "GeminiProvider initialized: detection=%s, response_high=%s, response_medium=%s",
+                self._settings.detection_gemini_model,
+                self._settings.response_gemini_high_model,
+                self._settings.response_gemini_medium_model,
+            )
+            return True
+        except ImportError:
+            logger.error("google-genai package not installed. Run: pip install google-genai")
+            return False
+
+    async def classify(
+        self,
+        text: str,
+        language: str = "en",
+        rule_hints: list[str] | None = None,
+        matched_rules: list[str] | None = None,
+        urls: list[str] | None = None,
+    ) -> LLMVerdict:
+        if not self._available or not self._client:
+            return LLMVerdict()
+
+        from google.genai import types
+
+        user_prompt = build_user_prompt(text, language, rule_hints, matched_rules, urls)
+        response = await self._client.aio.models.generate_content(
+            model=self._settings.detection_gemini_model,
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=_SYSTEM_PROMPT,
+                temperature=min(self._settings.llm_temperature, 0.4),
+                top_p=self._settings.llm_top_p,
+                # Gemini's JSON output (reasoning + explanation + features + red_flags)
+                # runs longer than Groq/OpenAI's for the same schema; the configured
+                # llm_max_tokens (tuned for those providers) truncates it mid-object
+                # and the response fails to parse. Floor it higher for this provider.
+                max_output_tokens=max(self._settings.llm_max_tokens, 500),
+                response_mime_type="application/json",
+            ),
+        )
+        raw_content = response.text or ""
+        return parse_llm_response(raw_content) or LLMVerdict()
+
+    async def health_check(self) -> bool:
+        if not self._available or not self._client:
+            return False
+        try:
+            from google.genai import types
+
+            response = await self._client.aio.models.generate_content(
+                model=self._settings.detection_gemini_model,
+                contents="ping",
+                config=types.GenerateContentConfig(max_output_tokens=5),
+            )
+            return bool(response.text)
+        except Exception:
+            return False
+
+    async def generate_text(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.3,
+        max_tokens: int = 256,
+    ) -> str:
+        return await self._generate(
+            messages=messages,
+            model=self._settings.response_gemini_medium_model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    async def generate_text_for_risk(
+        self,
+        messages: list[dict[str, str]],
+        risk_level: str,
+        temperature: float = 0.85,
+        max_tokens: int = 120,
+    ) -> str:
+        """Route to gemini-2.5-pro for high-risk, gemini-3.5-flash-lite for medium/low."""
+        model = (
+            self._settings.response_gemini_high_model
+            if risk_level == "high"
+            else self._settings.response_gemini_medium_model
+        )
+        return await self._generate(
+            messages=messages, model=model, temperature=temperature, max_tokens=max_tokens,
+        )
+
+    async def _generate(
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> str:
+        if not self._available or not self._client or not messages:
+            return ""
+
+        from google.genai import types
+
+        system_text, contents = self._prepare_messages(messages)
+        if not contents:
+            return ""
+
+        config_kwargs: dict = dict(
+            system_instruction=system_text or None,
+            temperature=self._tuned_temperature(temperature),
+            top_p=self._settings.llm_top_p,
+        )
+        if model == self._settings.response_gemini_high_model:
+            # gemini-2.5-pro cannot disable thinking ("this model only works in
+            # thinking mode") and with no explicit budget it defaults to an
+            # unbounded one — confirmed empirically to consume an entire
+            # 1024-token max_output_tokens on internal reasoning alone, leaving
+            # zero tokens for the actual reply. Cap it and pad the budget to
+            # cover thinking + the real output.
+            config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=128)
+            config_kwargs["max_output_tokens"] = max(max_tokens, 300) + 128
+        else:
+            config_kwargs["max_output_tokens"] = max_tokens
+
+        response = await self._client.aio.models.generate_content(
+            model=model,
+            contents=contents,
+            config=types.GenerateContentConfig(**config_kwargs),
+        )
+        return (response.text or "").strip()
+
+    def _prepare_messages(self, messages: list[dict[str, str]]):
+        """
+        Convert OpenAI-style {role, content} messages into a Gemini
+        system_instruction string plus a list of types.Content turns
+        (role "assistant" -> "model"), keeping only the latest N turns.
+        """
+        from google.genai import types
+
+        system_text = ""
+        non_system: list[dict[str, str]] = []
+        for m in messages:
+            role = (m.get("role") or "").strip()
+            content = re.sub(r"\s+", " ", (m.get("content") or "")).strip()
+            if not content:
+                continue
+            if role == "system":
+                if not system_text:
+                    system_text = content
+            else:
+                non_system.append({"role": role, "content": content})
+
+        keep = max(2, self._settings.llm_history_turns)
+        recent = non_system[-keep:]
+        # Gemini expects the turn sequence to start with a user message.
+        while recent and recent[0]["role"] != "user":
+            recent.pop(0)
+
+        contents = [
+            types.Content(
+                role="model" if m["role"] == "assistant" else "user",
+                parts=[types.Part(text=m["content"])],
+            )
+            for m in recent
+        ]
+        return system_text, contents
+
+    def _tuned_temperature(self, requested_temperature: float) -> float:
+        base = requested_temperature if requested_temperature > 0 else self._settings.llm_temperature
+        jitter = random.uniform(-0.05, 0.05)
+        return max(0.6, min(1.0, base + jitter))
+
+
 # --- Factory ---
 
 def create_llm_provider(
@@ -530,7 +720,7 @@ def create_llm_provider(
     Factory to create LLM provider instances.
 
     Args:
-        provider: Provider name ("groq" or "openai").
+        provider: Provider name ("groq", "openai", or "gemini").
         settings: Optional LLM settings override.
 
     Returns:
@@ -546,8 +736,10 @@ def create_llm_provider(
             return GroqProvider(settings)
         case "openai":
             return OpenAIProvider(settings)
+        case "gemini":
+            return GeminiProvider(settings)
         case _:
             raise ValueError(
                 f"Unsupported LLM provider: {provider}. "
-                f"Supported: groq, openai."
+                f"Supported: groq, openai, gemini."
             )
