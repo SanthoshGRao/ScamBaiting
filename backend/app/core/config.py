@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     tracking_base_url: str = Field(default_factory=_default_tracking_base_url)
     tracking_link_threshold: int = 6  # Min user messages before sending a tracking link
 
+    # Max WhatsApp bubbles the baiting agent may send per turn. 1 = always a
+    # single message. Higher values let chatty personas double-text, which is
+    # more human but risks two loosely-related thoughts in one turn.
+    baiting_max_bubbles: int = 1
+
     model_config = {
         "env_file": ".env",
         "extra": "ignore",

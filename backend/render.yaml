@@ -10,3 +10,32 @@ services:
         value: "3.11"
       - key: DATABASE_URL
         value: sqlite:///./scamshield.db
+
+      # --- Baiting reply generation ---
+      # Pinned here so the deployed agent behaves exactly like a local run.
+      # Without these it silently falls back to code defaults (notably
+      # LLM_HISTORY_TURNS=8), which starves the reply agent of conversation
+      # history and makes replies markedly less coherent.
+      - key: RESPONSE_GEMINI_HIGH_MODEL
+        value: gemini-2.5-pro
+      - key: RESPONSE_GEMINI_MEDIUM_MODEL
+        value: gemini-3.5-flash-lite
+      - key: DETECTION_GEMINI_MODEL
+        value: gemini-3.5-flash-lite
+      - key: LLM_HISTORY_TURNS
+        value: "24"
+      - key: LLM_MAX_TOKENS
+        value: "220"
+      - key: LLM_TEMPERATURE
+        value: "0.78"
+      # 1 = one WhatsApp message per turn. Raise to allow double-texting.
+      - key: BAITING_MAX_BUBBLES
+        value: "1"
+
+      # Secrets — set these in the Render dashboard, never in this file.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: DEFAULT_ADMIN_PASSWORD
+        sync: false

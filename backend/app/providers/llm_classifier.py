@@ -43,7 +43,10 @@ class LLMSettings(BaseSettings):
     llm_temperature: float = Field(default=0.78, ge=0.0, le=2.0)
     llm_top_p: float = Field(default=0.9, ge=0.0, le=1.0)
     llm_max_tokens: int = Field(default=220, ge=32, le=4096)
-    llm_history_turns: int = Field(default=8, ge=2, le=30)
+    # The baiting agent relies on seeing the full recent conversation to stay
+    # consistent with what it already claimed. 8 turns starved it and produced
+    # repetition/contradiction, so the default matches the deployed config.
+    llm_history_turns: int = Field(default=24, ge=2, le=30)
 
     model_config = {
         "env_prefix": "",

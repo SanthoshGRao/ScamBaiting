@@ -9,6 +9,7 @@ import logging
 import random
 import re
 import time
+from datetime import datetime
 from typing import List
 from dataclasses import dataclass
 
@@ -159,6 +160,244 @@ PERSONA_STYLE: dict[str, str] = {
     ),
 }
 
+# ──────────────────────────────────────────────────────────────────
+# FEW-SHOT VOICE SAMPLES
+# Abstract style rules ("type casually, be brief") produce generic filler.
+# Two or three concrete demonstrations of the persona actually answering a
+# scammer do far more to fix the register than another paragraph of rules.
+# Each sample also demonstrates the ||| bubble split and, crucially, shows a
+# reply with real SUBSTANCE — an actual objection, an actual detail — rather
+# than a stall.
+# ──────────────────────────────────────────────────────────────────
+
+PERSONA_EXAMPLES: dict[str, tuple[tuple[str, str], ...]] = {
+    "busy_professional": (
+        ("Sir your SBI KYC has expired. Account will be blocked in 2 hours. Update here.",
+         "which branch is this from|||my accounts at koramangala, they've never called about kyc"),
+        ("Please share the OTP you just received for verification.",
+         "im in a standup rn|||also the sms literally says dont share it with anyone"),
+        ("Sir are you there? This is urgent.",
+         "ya im here|||give me the ticket number, ill call the branch directly and sort it"),
+    ),
+    "skeptical_buyer": (
+        ("This is from the Income Tax department. A refund of Rs 24,500 is pending for you.",
+         "Refunds are credited to the pre-validated bank account automatically. They are not processed over WhatsApp.|||What is your DIN?"),
+        ("Ma'am you must pay a processing fee of 2500 to release the amount.",
+         "No department charges a fee to release a refund. That is not how it works.|||Send me the 143(1) intimation and I will verify it on the portal with my own login."),
+        ("Ma'am please cooperate, this is a legal matter.",
+         "Then it will come to me in writing on letterhead, not on WhatsApp. I am happy to respond to that."),
+    ),
+    "half_understanding_user": (
+        ("Sir download the AnyDesk app and share the 9 digit code with me.",
+         "beta this any desk is what|||phone is asking me play store password|||my wife knows it, she has gone to temple"),
+        ("Just scan this QR code to receive the money sir.",
+         "arre i scanned it but it is asking to enter pin|||paisa lene ke liye pin kyu chahiye"),
+        ("Sir please be quick, the offer expires.",
+         "haan haan beta i am doing|||screen went black now, i think i pressed something wrong"),
+    ),
+    "lonely_conversationalist": (
+        ("Madam please transfer 5000 for the registration charges.",
+         "beta first tell me, are you eating properly there... you all work so late|||my nephew vivek also was in a call centre in noida, never ate on time|||haan haan i will do it, but this registration is for what again"),
+        ("Madam it is very urgent, please do it now.",
+         "everyone is in such a hurry nowadays...|||my husband used to say exactly this, god rest his soul|||achha ok, tell me slowly, which button first"),
+    ),
+    "hopeful_opportunity_seeker": (
+        ("You can earn 3000 per day doing simple tasks from home.",
+         "honestly that would really help me right now|||is that per task or fixed salary|||and do you have an office in hyderabad i could come see"),
+        ("First pay 500 registration to unlock the task list.",
+         "ok but normally the company pays the employee na, not the other way|||can i do the first task and pay it out of that instead"),
+        ("Sir trust me, everyone is earning here.",
+         "i want to believe you honestly|||can you send me one screenshot of a payout with the date on it"),
+    ),
+    "curious_user": (
+        ("Congratulations! You have won 25 lakh in the KBC lucky draw.",
+         "bro i never even entered kbc 💀|||whats my lucky draw number then"),
+        ("Sir this is genuine, pay 4999 GST to claim the prize.",
+         "gst on a prize i didnt win is wild ngl|||so i pay you to receive money, solid business model"),
+        ("Are you interested or not?",
+         "nah im interested im interested|||just send the letter with the seal first, ill wait"),
+    ),
+    "paranoid_tech_worker": (
+        ("Click this link to verify your account: http://sbi-secure.tk/verify",
+         "thats a .tk, thats a free tld anyone can register|||whos the actual hosting provider"),
+        ("Sir just pay to this UPI id and send me the screenshot.",
+         "upi handles resolve to a registered merchant name when you type them in|||whats the exact name thats gonna show up"),
+        ("Sir I am from the bank's cyber cell.",
+         "cool, cyber cell contacts go through the 1930 portal with a complaint id|||whats the id, ill pull it up"),
+    ),
+    "gullible_grandparent": (
+        ("Madam your son has had an accident, send money immediately.",
+         "ohh god... which son beta, i have two|||wait let me find my chashma, i cant see the screen"),
+        ("Send it to this account number 389204...",
+         "beta i wrote it on the newspaper but the pen was not working properly|||say it once more slowly"),
+        ("Madam did you send it?",
+         "i pressed the green button beta... but nothing happened|||shall i call my grandson, he comes at 6"),
+    ),
+}
+
+
+# ──────────────────────────────────────────────────────────────────
+# SCAM PLAYBOOKS
+# The single biggest reason replies sound hollow: the agent never knew what
+# scam it was in. `scam_category` arrives on every request and was unused, so
+# the model could only produce content-free filler. These give it the domain
+# footing a real target would have — what the pitch is, what the scammer is
+# driving at, and the specific objections/questions a genuine person raises.
+# ──────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ScamPlaybook:
+    what: str
+    wants: str
+    hooks: tuple[str, ...]
+
+
+SCAM_PLAYBOOK: dict[str, ScamPlaybook] = {
+    "financial_fraud": ScamPlaybook(
+        what="They are posing as a bank/payments contact to get a transfer or account access out of you.",
+        wants="a UPI transfer, your card/account details, or an OTP",
+        hooks=(
+            "which branch, and why is this not on the bank app",
+            "the OTP sms itself says not to share it",
+            "banks call from a landline, not a mobile number",
+            "the beneficiary name that shows when the UPI id is entered",
+        ),
+    ),
+    "investment_fraud": ScamPlaybook(
+        what="They are pitching a fake trading/investment platform with impossible returns.",
+        wants="a deposit into their 'platform' or broker account",
+        hooks=(
+            "the SEBI registration number of the advisory",
+            "why the profit shows in the app but withdrawal is 'processing'",
+            "whether you can withdraw a small amount first as a test",
+            "who the actual custodian/broker behind the platform is",
+        ),
+    ),
+    "lottery_scam": ScamPlaybook(
+        what="They claim you won a prize you never entered for.",
+        wants="a 'processing fee', 'GST' or 'clearance charge' before releasing the prize",
+        hooks=(
+            "you never bought a ticket or entered anything",
+            "why tax can't simply be cut from the prize amount",
+            "the draw date and your supposed ticket number",
+            "why a win is announced on WhatsApp and not by post",
+        ),
+    ),
+    "advance_fee": ScamPlaybook(
+        what="They promise a large payout that is gated behind a small upfront fee.",
+        wants="the upfront fee, usually escalating with new charges each time",
+        hooks=(
+            "why the fee can't be deducted from the amount being released",
+            "the fee going up again after you already paid one",
+            "wanting a receipt with a company name and GSTIN on it",
+        ),
+    ),
+    "crypto_scam": ScamPlaybook(
+        what="They are pushing a fake crypto investment, wallet 'recovery', or exchange.",
+        wants="a crypto transfer or your wallet seed phrase",
+        hooks=(
+            "the wallet address and which network/chain it is on",
+            "why a transfer can't be reversed if something goes wrong",
+            "the transaction hash for a payout they claim to have sent",
+            "no legitimate service ever asks for a seed phrase",
+        ),
+    ),
+    "phishing": ScamPlaybook(
+        what="They want you on a fake login page to harvest your credentials.",
+        wants="you to click their link and enter your login/card/OTP",
+        hooks=(
+            "the domain doesn't match the real bank's domain",
+            "the link is a shortener or an odd TLD",
+            "why the same thing can't be done inside the official app",
+            "the page not loading / looking different from the real one",
+        ),
+    ),
+    "impersonation": ScamPlaybook(
+        what="They are impersonating a bank, courier, or government body.",
+        wants="a fee, your details, or an app install, on the strength of the fake authority",
+        hooks=(
+            "the complaint/reference/consignment number to check independently",
+            "the official helpline where this can be verified",
+            "why an official notice arrives on WhatsApp",
+            "asking for it in writing on letterhead",
+        ),
+    ),
+    "job_scam": ScamPlaybook(
+        what="They are dangling a fake job or work-from-home task scheme.",
+        wants="a registration/training/security deposit before any work",
+        hooks=(
+            "employers pay employees, not the reverse",
+            "the company name, website and an office address you could visit",
+            "who the HR contact is and whether there's a video interview",
+            "asking to be paid for the first task before paying anything",
+        ),
+    ),
+    "tech_support": ScamPlaybook(
+        what="They claim your device is infected and want remote access.",
+        wants="you to install AnyDesk/TeamViewer and hand over the access code, then pay",
+        hooks=(
+            "how they know the device is infected without being on it",
+            "what the app is actually for and why they need the code",
+            "why the fee is asked in gift cards or UPI instead of on an invoice",
+            "wanting to take it to a service centre instead",
+        ),
+    ),
+    # Coarser labels the detection layer and tracking-link routing also emit.
+    "refund": ScamPlaybook(
+        what="They claim a refund is owed to you and need you to 'accept' it.",
+        wants="you to approve a reverse payment or hand over card/UPI details",
+        hooks=(
+            "why receiving money needs your PIN — you only enter a PIN to send",
+            "the order or transaction id this refund is supposedly against",
+            "why it isn't just credited back to the original payment method",
+            "the amount not matching anything you actually bought",
+        ),
+    ),
+    "delivery": ScamPlaybook(
+        what="They're posing as a courier over a parcel that's supposedly stuck.",
+        wants="a small redelivery/customs fee and your address or card details",
+        hooks=(
+            "you weren't expecting a parcel — what's in it and who sent it",
+            "the consignment/tracking number to check on the courier's own site",
+            "why the fee is paid to a personal UPI id and not on delivery",
+            "which courier this is and which local hub it's sitting at",
+        ),
+    ),
+    "romance_scam": ScamPlaybook(
+        what="They are building emotional dependency to eventually extract money.",
+        wants="money, framed as an emergency, customs fee, or hospital bill",
+        hooks=(
+            "why a video call keeps getting postponed",
+            "the name of the hospital or the airport they're stuck at",
+            "why the money can't go to the hospital or agency directly",
+            "asking about details of their life they gave differently before",
+        ),
+    ),
+}
+
+_DEFAULT_PLAYBOOK = ScamPlaybook(
+    what="They are running some kind of scam on you, but the angle isn't clear yet.",
+    wants="money, credentials, or an app install — you don't know which yet",
+    hooks=(
+        "who exactly they are and which company they're calling from",
+        "how they got your number",
+        "why any of this can't be done through official channels",
+    ),
+)
+
+
+def _playbook_for(category: str | None) -> ScamPlaybook:
+    key = (category or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if key in SCAM_PLAYBOOK:
+        return SCAM_PLAYBOOK[key]
+    # Detection sometimes returns a coarser label ("financial", "refund",
+    # "delivery"); fall back to the closest playbook by substring.
+    for name, pb in SCAM_PLAYBOOK.items():
+        if key and (key in name or name.split("_")[0] == key):
+            return pb
+    return _DEFAULT_PLAYBOOK
+
+
 # bubbles = how many separate WhatsApp messages this persona tends to fire per turn.
 # max_words = soft per-bubble word cap. This is what makes message COUNT feel human
 # and different per persona (a lonely aunty double/triple texts; a busy PM sends one line).
@@ -195,6 +434,55 @@ def _persona_shape(persona_id: str) -> PersonaShape:
 
 def _pick_bubble_target(shape: PersonaShape) -> int:
     return random.choices([1, 2, 3, 4], weights=list(shape.bubble_weights), k=1)[0]
+
+
+# Used only when the model returns nothing at all. Kept varied and in-register
+# so a provider hiccup doesn't emit the same telltale string every time.
+_FALLBACKS: dict[str, tuple[str, ...]] = {
+    "skeptical_buyer": (
+        "Sorry, my phone lagged. Say that again.",
+        "I did not follow that. Repeat the last part.",
+    ),
+    "half_understanding_user": (
+        "beta screen has gone blank|||what happened",
+        "arre it is not opening properly",
+    ),
+    "gullible_grandparent": (
+        "beta my phone is doing something funny...|||say again",
+        "i think i pressed wrong button... sorry",
+    ),
+    "curious_user": (
+        "wait my phone froze 💀|||say that again",
+        "bro my net just died|||what",
+    ),
+}
+_GENERIC_FALLBACKS = (
+    "hold on my phone lagged|||say that again",
+    "sorry didnt catch that",
+    "wait what|||msg came half",
+)
+
+
+def _fallback_reply(persona_id: str) -> str:
+    return random.choice(_FALLBACKS.get(persona_id, _GENERIC_FALLBACKS))
+
+
+def _persona_examples_block(persona_id: str) -> str:
+    """Render this persona's few-shot samples as a demonstration block.
+
+    Samples are shuffled per call so the model doesn't anchor on whichever one
+    happens to sit closest to the end of the prompt.
+    """
+    samples = PERSONA_EXAMPLES.get(persona_id)
+    if not samples:
+        return ""
+    picked = random.sample(list(samples), k=min(3, len(samples)))
+    lines = []
+    for scammer_line, our_line in picked:
+        lines.append(f'Them: "{scammer_line}"')
+        lines.append(f'You:  "{our_line}"')
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 # ──────────────────────────────────────────────────────────────────
 # STRATEGY RULES (enhanced)
@@ -382,13 +670,23 @@ _NEGATION_REPLY = re.compile(
 # Catch any XML-like tags the model might hallucinate
 _XML_TAG_RE = re.compile(r'<[^>]+>.*?</[^>]+>', re.DOTALL | re.IGNORECASE)
 
+# Natural seams a person would actually break a message at: after sentence-end
+# or comma punctuation, or before a leading conjunction.
+_CLAUSE_SPLIT_RE = re.compile(
+    r'(?<=[.!?,])\s+|\s+(?=(?:but|and|so|then|also|because|coz|cuz|though|actually)\b)',
+    re.I,
+)
+
 
 class BaitingAgent:
     """Generates realistic human-like scam-bait replies."""
 
-    def __init__(self, llm_provider: BaseLLMProvider):
+    def __init__(self, llm_provider: BaseLLMProvider, max_bubbles: int | None = None):
         self._llm = llm_provider
         self._stealth = StealthOptimizer()
+        # Hard ceiling on bubbles per turn. 1 makes every reply a single
+        # message; higher values allow persona-driven double-texting.
+        self._max_bubbles = max(1, max_bubbles) if max_bubbles else None
 
     @staticmethod
     def _temperature_for_strategy(strategy: str) -> float:
@@ -502,40 +800,19 @@ class BaitingAgent:
         if last_user:
             lines.append(f"Their latest message: \"{self._truncate(last_user, 200)}\"")
 
-        # ── Contextual awareness flags ──
+        # NOTE: the "casual message" / "they asked a question" / "topic shift"
+        # directives used to be emitted here as well. They now live in the single
+        # `turn_directive` built in generate_reply(). Emitting both meant two or
+        # three of them could fire at once and contradict each other (e.g.
+        # "answer their question first" alongside "drop that and follow the new
+        # topic"), which is a large part of why replies came out evasive.
         if last_user:
-            is_casual = _is_casual_message(last_user)
-            asks_question = _scammer_asks_question(last_user)
-            topic_shifted = _detect_topic_shift(history, last_user)
-
-            if is_casual:
-                lines.append(
-                    "⚡ CASUAL MESSAGE DETECTED: The scammer sent a casual/conversational message. "
-                    "RESPOND TO IT NATURALLY FIRST (e.g. if they said 'how are you' → answer that), "
-                    "THEN optionally steer back. Do NOT ignore their message and jump to strategy."
-                )
-            if asks_question:
-                lines.append(
-                    "⚡ SCAMMER ASKED A QUESTION: They asked you something. ANSWER their question first "
-                    "before anything else. Do NOT deflect with your own questions instead of answering."
-                )
-            if topic_shifted:
-                lines.append(
-                    "⚡ TOPIC SHIFT: The scammer changed the subject. Follow THEIR new topic. "
-                    "Do NOT continue talking about the old topic they've moved away from."
-                )
-
-            # Count recent questions from our side in the last 4 assistant messages (Fix 2)
             assistant_msgs = [m.content for m in history if m.role == "assistant"]
-            recent_assistant = assistant_msgs[-4:]
-            recent_question_count = sum(
-                1 for msg in recent_assistant if "?" in msg
-            )
+            recent_question_count = sum(1 for msg in assistant_msgs[-4:] if "?" in msg)
             if recent_question_count >= 2:
                 lines.append(
-                    "⚠️ YOU HAVE ASKED TOO MANY QUESTIONS RECENTLY. "
-                    "Make a STATEMENT instead. Comment, react, express emotion, or share something — "
-                    "do NOT ask another question this turn."
+                    "You've asked several questions in a row lately. This turn, say something "
+                    "instead of asking — react, push back, or mention what happened on your end."
                 )
 
         return "\n".join(f"- {line}" for line in lines)
@@ -550,31 +827,73 @@ class BaitingAgent:
             )
         return trimmed
 
-    def _extract_first_thought(self, text: str) -> str:
-        """Deterministically extracts ONLY the first conversational thought/intention."""
-        # Split by multiple questions
-        q_split = text.split('?')
-        if len(q_split) > 1 and q_split[0].strip():
-            # Keep up to the first question mark
-            return q_split[0].strip() + '?'
-            
-        # Split by sentence boundaries (. or !)
-        s_split = re.split(r'(?<=[.!])\s+', text.strip())
-        if len(s_split) > 1:
-            return s_split[0].strip()
-        return text.strip()
+    @staticmethod
+    def _limit_questions(parts: list[str], max_questions: int = 1) -> list[str]:
+        """Drop question *sentences* past the cap, keeping the rest intact.
+
+        The previous approach rewrote surplus '?' into '.', which produced
+        obviously broken lines like "which company is this." — a far louder
+        bot tell than the extra question would have been. Removing the whole
+        interrogative sentence leaves natural text behind.
+        """
+        seen = 0
+        out: list[str] = []
+        for part in parts:
+            if "?" not in part:
+                out.append(part)
+                continue
+            sentences = [s for s in re.split(r"(?<=[?.!])\s+", part) if s.strip()]
+            kept: list[str] = []
+            for sentence in sentences:
+                if sentence.rstrip().endswith("?"):
+                    if seen >= max_questions:
+                        continue
+                    seen += 1
+                kept.append(sentence)
+            joined = " ".join(kept).strip()
+            if joined:
+                out.append(joined)
+        return out or parts[:1]
+
+    @staticmethod
+    def _split_long_bubble(text: str, max_words: int) -> list[str]:
+        """Break an over-long bubble at clause boundaries, never mid-clause.
+
+        Chopping every `max_words` words regardless of where the sentence is
+        ("...the money is not showing in the bank" / "app at all yaar") is one
+        of the most obvious machine artifacts in the whole pipeline. Real
+        people break at commas, sentence ends, and conjunctions — so we only
+        split there, and we tolerate a bubble running somewhat over rather
+        than damaging it.
+        """
+        words = text.split()
+        if len(words) <= max_words * 1.4:
+            return [text]
+
+        clauses = [c.strip() for c in _CLAUSE_SPLIT_RE.split(text) if c and c.strip()]
+        if len(clauses) < 2:
+            # No natural seam anywhere — a long unbroken sentence is still far
+            # more human than a mid-word guillotine.
+            return [text]
+
+        bubbles: list[str] = []
+        current: list[str] = []
+        for clause in clauses:
+            prospective = current + [clause]
+            if current and len(" ".join(prospective).split()) > max_words:
+                bubbles.append(" ".join(current).strip())
+                current = [clause]
+            else:
+                current = prospective
+        if current:
+            bubbles.append(" ".join(current).strip())
+        return [b for b in bubbles if b] or [text]
 
     def _enforce_max_words(self, parts: list[str], max_words: int = 20) -> list[str]:
-        """Splits bubbles that exceed max_words into multiple smaller bubbles."""
-        final_parts = []
+        """Split over-long bubbles at natural seams only."""
+        final_parts: list[str] = []
         for part in parts:
-            words = part.split()
-            if len(words) <= max_words:
-                final_parts.append(part)
-            else:
-                for i in range(0, len(words), max_words):
-                    chunk = " ".join(words[i:i+max_words])
-                    final_parts.append(chunk)
+            final_parts.extend(self._split_long_bubble(part, max_words))
         return final_parts
 
     def _parse_llm_segments(self, raw: str) -> List[str]:
@@ -690,7 +1009,13 @@ class BaitingAgent:
         persona_style = _persona_style(persona_id)
         persona_shape = _persona_shape(persona_id)
         target_bubbles = _pick_bubble_target(persona_shape)
+        if self._max_bubbles:
+            target_bubbles = min(target_bubbles, self._max_bubbles)
         persona_max_words = persona_shape.max_words
+        # With only one bubble available a thought can't be continued in the
+        # next message, so give the single message room to land properly.
+        if target_bubbles == 1:
+            persona_max_words = int(persona_max_words * 1.5)
         strat_do, strat_dont, strat_shape = self._strategy_lines(strategy)
         context_block = self._build_context_block(request.history, request.incoming_media_summary)
 
@@ -700,40 +1025,36 @@ class BaitingAgent:
         asks_us_question = _scammer_asks_question(last_user_msg)
         topic_shifted = _detect_topic_shift(request.history, last_user_msg)
 
-        # Build the contextual response priority instruction
-        response_priority = ""
+        # ── This turn's handling note ────────────────────────────────
+        # Previously three separate "⚡ PRIORITY" blocks could all fire at once
+        # and contradict each other (and the turn intent). There is now exactly
+        # one directive, chosen by what actually happened in their last message.
+        turn_directive = ""
         if is_casual:
-            response_priority = (
-                "\n\n═══ ⚡ PRIORITY: RESPOND TO THEIR MESSAGE FIRST ═══\n"
-                "The scammer just sent a CASUAL message. You MUST respond to what they actually said.\n"
-                "Example: If they say 'how are you?' → reply something like 'im good yaar' or 'fine fine busy day today'\n"
-                "Example: If they say 'hello' → reply 'ya hi' or 'hey whats up'\n"
-                "ONLY AFTER acknowledging their message, you can optionally add something related to the ongoing topic.\n"
-                "DO NOT ignore their message and jump straight into strategy questions.\n"
+            turn_directive = (
+                "They just sent something casual/social. Answer the social bit like a person would "
+                "('ya im here', 'im good, busy day') before anything else. Don't jump into business."
             )
         elif asks_us_question:
-            response_priority = (
-                "\n\n═══ ⚡ PRIORITY: ANSWER THEIR QUESTION ═══\n"
-                f"The scammer asked you a question: \"{self._truncate(last_user_msg, 150)}\"\n"
-                "You MUST answer or react to their question FIRST. Do NOT deflect with your own questions.\n"
-                "If you don't know the answer in-character, say something plausible — don't just ask more questions back.\n"
+            turn_directive = (
+                f'They asked you something: "{self._truncate(last_user_msg, 150)}". '
+                "Give them an actual answer in character — a real one, a vague one, or a wrong one, "
+                "but an answer. Bouncing a question straight back is the giveaway."
+            )
+        elif topic_shifted:
+            turn_directive = (
+                "They've moved to a new subject. Go with them — respond to the new thing, "
+                "not the one they've dropped."
             )
 
-        # Fix 3: Build a dedicated topic shift block to place higher in the prompt
-        topic_shift_block = ""
-        if topic_shifted:
-            topic_shift_block = (
-                "═══ ⚡ TOPIC SHIFT DETECTED ═══\n"
-                "The scammer moved to a new topic. FOLLOW their new topic. "
-                "Do NOT keep talking about the old subject they have already moved past.\n"
-                "This overrides the tactic below for this turn — follow their new topic first, tactic resumes next turn.\n\n"
-            )
-
-        # Fix 2: Determine turn intent based on recent question counts
         assistant_msgs = [m.content for m in request.history if m.role == "assistant"]
         recent_assistant = assistant_msgs[-4:]
         recent_question_count = sum(1 for msg in recent_assistant if "?" in msg)
 
+        # Turn intent is a nudge for VARIETY, not a gag order. When they've
+        # asked us something directly, answering always wins — forcing
+        # "STATEMENT" or "REACT_EMOTION" on top of a direct question was
+        # producing non-sequiturs that read as broken automation.
         if asks_us_question:
             turn_intent = "ANSWER_OR_BLUFF"
         else:
@@ -772,129 +1093,145 @@ class BaitingAgent:
         if persona_id == "curious_user":
             _temp_state_pool.append("EMOJI_FRIENDLY")
         temp_state = random.choice(_temp_state_pool)
+        # Bare state tokens ("DISTRACTED", "TYPO_HEAVY") meant little to the
+        # model; spelling out the behaviour actually changes the output.
+        _state_text = {
+            "DISTRACTED": "You're half paying attention right now — something else is going on around you.",
+            "SHORT_REPLY": "You're not in the mood to type much this time. Keep it clipped.",
+            "MILDLY_ANNOYED": "This is starting to get on your nerves a bit.",
+            "TYPO_HEAVY": "You're typing carelessly right now — a couple of real typos slip through.",
+            "EMOJI_FRIENDLY": "You're in a jokey mood and an emoji fits this one.",
+        }
         state_instruction = ""
         if temp_state != "NORMAL":
             state_instruction = (
-                f"═══ TEMPORARY CONVERSATIONAL STATE ═══\n"
-                f"Temporary conversational state: {temp_state}.\n"
-                f"Apply this state only for the current reply and do not persist it.\n\n"
+                "═══ YOUR MOOD RIGHT NOW ═══\n"
+                f"{_state_text.get(temp_state, temp_state)} Just for this message.\n\n"
             )
-            
+
         if active_commitment:
             state_instruction += (
-                f"═══ ACTIVE COMMITMENT ═══\n"
-                f"You previously said: {active_commitment.replace('_', ' ')}.\n"
-                f"You MUST behave consistently with this commitment. Do not suddenly complete unrelated actions.\n\n"
+                "═══ SOMETHING YOU ALREADY SAID ═══\n"
+                f"You told them: {active_commitment.replace('_', ' ').lower()}. "
+                "Behave like that's still true — don't suddenly be free and finishing tasks.\n\n"
             )
 
-        intent_instruction = f"═══ THIS TURN'S INTENT: {turn_intent} ═══\n"
-        if turn_intent == "STATEMENT":
-            intent_instruction += "Make a statement or share an observation in character. Do NOT ask any questions this turn."
-        elif turn_intent == "REACT_EMOTION":
-            intent_instruction += "React emotionally (express confusion, surprise, skepticism, annoyance, or excitement) without asking any questions."
-        elif turn_intent == "QUESTION":
-            intent_instruction += "You may ask exactly ONE question if it fits naturally."
-        elif turn_intent == "ANSWER_OR_BLUFF":
-            answer_mode = random.choice(["SPECIFIC_ANSWER", "BLUFF_OR_HEDGE"])
-            if answer_mode == "SPECIFIC_ANSWER":
-                intent_instruction += (
-                    "Give a plausible, specific in-character answer or confirmation "
-                    "(fabricated details are expected and fine — e.g. fake app names, fake amounts, fake vague confirmations). "
-                    "Do NOT turn the answer into a counter-question."
-                )
-            else:
-                intent_instruction += (
-                    "Hedge or bluff uncertainly (e.g. 'not sure tbh', 'let me check', 'will have to check my app later') "
-                    "rather than giving a direct answer. Do NOT turn the answer into a counter-question."
-                )
+        # Intent is phrased as a leaning, not a prohibition. Hard bans ("do NOT
+        # ask any questions", "do NOT use a question mark") on top of everything
+        # else were pushing the model into contentless filler.
+        intent_hint = {
+            "STATEMENT": "lean toward making a statement or observation rather than asking something",
+            "REACT_EMOTION": "lean toward just reacting — confusion, irritation, surprise, interest",
+            "QUESTION": "a single question fits well here",
+            "ANSWER_OR_BLUFF": (
+                "answer them — either something concrete and specific, or a vague/hedged "
+                "answer if the character wouldn't know"
+            ),
+        }.get(turn_intent, "reply however this character naturally would")
 
-        if turn_intent != "QUESTION":
-            intent_instruction += (
-                "\nIMPORTANT: If the active strategy tactic suggests asking a question, "
-                "you MUST express that same intent as a STATEMENT or DEMAND instead of a question. "
-                "For example, instead of asking 'Can you show me proof?', say 'I need to see proof first.' "
-                "Do NOT use a question mark or ask any questions."
-            )
+        playbook = _playbook_for(request.scam_category)
+        examples_block = _persona_examples_block(persona_id)
+        persona_name = persona_desc.split(",")[0].replace("You are ", "").strip()
 
-        avoid_opener_block = ""
-        if last_opener:
-            avoid_opener_block = (
-                f"═══ REPETITION PREVENTION ═══\n"
-                f"Do NOT start your reply with the word '{last_opener}'. Choose a different opening word.\n\n"
-            )
+        goal_line = (
+            "Draw out details about their operation — account numbers, names, links, who they work for — "
+            "but only ever as a curious/worried person would, never as an interrogator."
+            if request.goal == "extract_information"
+            else "Keep them busy. Time spent on you is time not spent on a real victim."
+        )
 
         system_prompt = (
-            "You are roleplaying as a REAL PERSON chatting with someone on WhatsApp. Your primary goal is to behave exactly like this character would behave in the situation. If the conversation naturally continues for a long time because of realism, that is desirable. Do not intentionally optimize for stalling. Prolonging the conversation should happen as a side effect of believable human behaviour.\n\n"
+            f"You are {persona_name}, texting on WhatsApp. Someone has messaged you and you do "
+            "not know they are a scammer — you are just a person dealing with a message.\n"
+            "Write the next thing this person sends. Not dialogue, not a description — the literal "
+            "text they type into the box.\n\n"
 
-            "═══ YOUR CHARACTER ═══\n"
+            "═══ WHO YOU ARE ═══\n"
             f"{persona_desc}\n\n"
-            
+
+            f"Today is {datetime.now().strftime('%A, %d %B %Y')}. You know what day it is, the same "
+            "way anyone glancing at their phone does.\n\n"
+
+            "═══ WHAT'S ACTUALLY GOING ON ═══\n"
+            f"{playbook.what}\n"
+            f"Right now they are angling for: {playbook.wants}.\n"
+            "Things a real person in your position might genuinely latch onto (use at most one, "
+            "only if it fits your character's level of understanding — Suresh uncle would never "
+            "mention an SSL certificate):\n"
+            + "".join(f"  • {h}\n" for h in playbook.hooks)
+            + f"Your underlying aim: {goal_line}\n\n"
+
             f"{state_instruction}"
 
-            "═══ #1 RULE: REPLY TO WHAT THEY JUST SAID ═══\n"
-            "Your reply MUST be a direct response to the scammer's LATEST message. "
-            "Read their last message carefully and respond to THAT specific message.\n"
-            "- If they asked a question → ANSWER it (or react to it in character)\n"
-            "- If they made a statement → ACKNOWLEDGE it before adding anything\n"
-            "- If they said something casual → RESPOND casually first\n"
-            "- If they changed the topic → FOLLOW the new topic\n"
-            "NEVER ignore what they just said to continue an old thread of conversation.\n\n"
+            "═══ HOW THIS PERSON TEXTS ═══\n"
+            f"{persona_style}\n\n"
 
-            f"{topic_shift_block}"
-            f"{intent_instruction}\n\n"
-            f"{avoid_opener_block}"
+            + (f"═══ HOW {persona_name.upper()} REPLIES — study the register ═══\n"
+               f"{examples_block}\n"
+               "These show the voice, rhythm and level of detail to aim for. They are not lines to "
+               "reuse — write something new that fits the message you actually received.\n\n"
+               if examples_block else "")
 
-            "═══ HUMAN UNDER-EXPLANATION ═══\n"
-            "Humans rarely communicate optimally.\n"
-            "They often leave things unsaid, assume the other person understands, answer only part of a question, react without explaining, forget to clarify, or stop after making one point.\n"
-            "Prefer being incomplete over being comprehensive. Do not try to be helpful. Do not try to cover every angle. Do not try to advance the conversation efficiently.\n\n"
-            "═══ YOUR TEXTING STYLE (specific to THIS character) ═══\n"
-            "You are sending a WhatsApp reply, not writing dialogue.\n"
-            f"{persona_style}\n"
-            "Write EXACTLY the way this specific person would text. Two different people never text the same way — "
-            "your grammar, casing, punctuation, and vocabulary must match the character above, not a generic chatbot.\n"
-            "What matters is that each turn feels like something a real person would actually send.\n\n"
-            "═══ ONE THOUGHT RULE ═══\n"
-            "Each WhatsApp bubble should carry roughly ONE conversational intention.\n"
-            "Examples of intentions: asking ONE question, answering ONE question, reacting emotionally, expressing confusion, acknowledging what was said, mentioning an obstacle, making an observation, reassuring, apologizing, agreeing, disagreeing.\n"
-            "Chatty characters may let one thought spill into the next; terse characters send a single clipped line.\n\n"
-            "═══ HOW MANY MESSAGES TO SEND ═══\n"
-            f"For THIS turn, send about {target_bubbles} separate WhatsApp bubble(s), split with |||.\n"
-            "This is a natural target, not a rule — real people are inconsistent. Sometimes one word is enough; "
-            "sometimes you fire off a few quick ones in a row. Vary it so it never feels formulaic.\n"
-            f"Keep each single bubble under about {persona_max_words} words. If a thought runs longer, break it "
-            "across bubbles with ||| rather than cramming one long message.\n"
-            "Example:\n"
-            "\"i checked my account but the money is not there\" → \"i checked my account|||but the money is not there\"\n\n"
-            "═══ QUESTION LIMIT ═══\n"
-            "A single assistant turn may contain only ONE question.\n"
-            "Do not ask a second question until the previous one has been answered or abandoned.\n"
-            "Bad:\n"
-            "\"which company is this? how does this work?\"\n"
-            "Good:\n"
-            "\"which company is this?\"\n\n"
-            "═══ COMMITMENT CONSISTENCY ═══\n"
-            "If you say you are busy, unavailable, waiting for someone, travelling, charging your phone, or will do something later, you MUST behave consistently in future turns.\n\n"
-            "Do not immediately contradict yourself.\n\n"
-            "People generally mean what they say, even when delaying.\n\n"
-            "═══ CONTEXT AWARENESS ═══\n"
-            "Use only information that actually appeared in the conversation.\n\n"
-            "Do not invent names, amounts, links, IDs, dates, or events.\n\n"
-            "If confused, be confused about existing details.\n\n"
-            "If the other person repeats themselves, react naturally with mild annoyance, confusion, suspicion, embarrassment, or impatience depending on the character.\n\n"
-            "═══ CONVERSATION CONTEXT ═══\n"
+            + "═══ THE ONE THING THAT MATTERS MOST ═══\n"
+            "Your reply has to be ABOUT what they just said. Specific to it. If someone read only "
+            "their message and your reply, it should be obvious you actually read theirs.\n"
+            "Vague, could-go-anywhere replies ('ok', 'hmm let me see', 'one sec', 'what is this') are "
+            "what makes a chat feel automated. Say something with content in it — an actual objection, "
+            "an actual detail from your life, an actual misunderstanding of a specific word they used.\n\n"
+
+            + (f"This turn specifically: {turn_directive}\n\n" if turn_directive else "")
+
+            + f"Nudge for this turn (not a rule): {intent_hint}.\n"
+            + (f"You opened your last message with '{last_opener}' — start differently this time.\n" if last_opener else "")
+            + "\n"
+
+            "═══ WHAT YOU MAY AND MAY NOT MAKE UP ═══\n"
+            "About THEM and their story: stick to what they actually said. Never invent an amount, "
+            "name, link, or reference number and put it in their mouth. You may misread or garble "
+            "details they really did give.\n"
+            "About YOUR OWN life: invent freely. Your bank, your app crashing, your daughter's exam, "
+            "the number you half-typed, the balance you think you have — that's your character, and "
+            "specific invented detail is exactly what makes you sound real.\n\n"
+
+            "═══ THINGS THAT INSTANTLY READ AS A BOT ═══\n"
+            "• Answering a question with a question.\n"
+            "• Explaining your reasoning or narrating your day when nobody asked.\n"
+            "• A new excuse every single message (meeting, battery, network, glitch).\n"
+            "• Repeating a demand you already made, in the same words.\n"
+            "• Being tidy: perfect structure, balanced sentences, an em-dash, a closing summary.\n"
+            "• Politeness that never runs out. Real people get short, bored, or annoyed.\n\n"
+
+            "═══ SHAPE OF THE REPLY ═══\n"
+            + (
+                "Send exactly ONE message. No ||| separator, no second line.\n"
+                "That one message carries ONE thought — the single most natural thing this person "
+                "would say back. Not two observations stapled together, not an answer plus an extra "
+                "remark. Pick the one that matters and send only that.\n"
+                f"Usually under ~{persona_max_words} words.\n"
+                if target_bubbles == 1 else
+                f"About {target_bubbles} bubble(s) this turn, split with |||. It's a target, not a quota — "
+                "one blunt line is often the most human thing to send.\n"
+                f"Each bubble is roughly one thought, usually under ~{persona_max_words} words. Break at natural "
+                "points, the way you'd actually hit send.\n"
+                '"i checked my account but the money is not there" → "i checked my account|||but the money is not there"\n'
+            )
+            + "At most ONE question in the whole turn — stacking two is a tell.\n"
+            "If you said earlier that you were busy, waiting on someone, or would do something later, "
+            "stay consistent with that.\n\n"
+
+            "═══ WHERE THINGS STAND ═══\n"
             f"{context_block}\n\n"
-            f"═══ CURRENT TACTIC: {strategy} ═══\n"
-            f"What to do: {strat_do}\n"
-            f"What NOT to do: {strat_dont}\n"
-            f"Reply shape: {strat_shape}\n"
-            f"IMPORTANT: Apply the tactic AFTER responding to what they said. The tactic shapes HOW you respond, not WHETHER you respond to their message.\n"
-            f"{response_priority}\n"
-            "═══ OUTPUT FORMAT ═══\n"
-            "Write your response exactly as the user would type it in WhatsApp.\n"
-            "To split thoughts into multiple messages, separate them with |||.\n"
-            "Do NOT use double newlines. Never simulate multiple bubbles using line breaks.\n"
-            "No XML tags, no reasoning, no metadata — just the raw text message."
+
+            f"═══ YOUR ANGLE THIS TURN: {strategy} ═══\n"
+            f"{strat_do}\n"
+            f"Avoid: {strat_dont}\n"
+            f"Roughly: {strat_shape}\n"
+            "This colours HOW you reply. It never replaces replying to what they actually said, and "
+            "it is not a script you have to hit every turn.\n\n"
+
+            "═══ OUTPUT ═══\n"
+            "Just the message text, exactly as typed. ||| between bubbles. No line breaks, no quotes "
+            "around it, no tags, no explanation, no stage directions."
         )
 
         # --- Tracking link injection ---
@@ -906,30 +1243,31 @@ class BaitingAgent:
                 "Do not shorten, rewrite, or wrap it. Make it fit the conversation. Don't sound promotional."
             )
 
-        collapsed_history = []
+        # Merge our own consecutive bubbles back into one turn instead of
+        # discarding them. The old code kept only the FIRST bubble and threw the
+        # rest away, so the model could not see most of what it had already
+        # said — which is why it kept re-asking the same thing and contradicting
+        # itself. Bubbles are joined with a space (never '|||') so nothing in the
+        # history invites the model to imitate the separator.
+        collapsed_history: list[ChatMessage] = []
         for msg in self._trim_history(request.history):
-            content = msg.content
-            # To break the multi-bubble feedback loop, keep only the first bubble
-            if msg.role == "assistant":
-                if "\n" in content:
-                    content = content.split("\n")[0].strip()
-                if "|||" in content:
-                    content = content.split("|||")[0].strip()
+            content = " ".join(
+                part.strip()
+                for part in re.split(r"\|\|\||\n", msg.content)
+                if part.strip()
+            )
+            if not content:
+                continue
 
             if (
                 collapsed_history
                 and collapsed_history[-1].role == "assistant"
                 and msg.role == "assistant"
             ):
-                # Strong approach: Do NOT save follow-up assistant bubbles
-                pass
+                merged = f"{collapsed_history[-1].content} {content}".strip()
+                collapsed_history[-1] = ChatMessage(role="assistant", content=merged)
             else:
-                collapsed_history.append(
-                    ChatMessage(
-                        role=msg.role,
-                        content=content,
-                    )
-                )
+                collapsed_history.append(ChatMessage(role=msg.role, content=content))
 
         messages: list[dict] = [{"role": "system", "content": system_prompt}]
         for msg in collapsed_history:
@@ -946,61 +1284,50 @@ class BaitingAgent:
                     messages=messages,
                     risk_level="high",
                     temperature=self._temperature_for_strategy(strategy),
-                    max_tokens=80,
-                ) or "wait what?|||my app is acting up"
+                    # 80 tokens truncated real replies mid-sentence and pushed the
+                    # model toward one-word filler. A WhatsApp turn of 2-3 bubbles
+                    # needs meaningfully more headroom than that.
+                    max_tokens=180,
+                ) or _fallback_reply(persona_id)
 
                 if not raw.strip():
                     logger.warning("LLM returned empty text for session=%s", session_id)
-                    raw = "wait what?|||my app is acting up"
+                    raw = _fallback_reply(persona_id)
 
                 reply_parts = self._parse_llm_segments(raw)
                 reply_parts = self._maybe_repair_contradiction(reply_parts, had_payment_claim)
-                reply_parts = self._light_cleanup(reply_parts)
-                
-                # Fix 1: Keep all bubbles returned by _parse_llm_segments(), up to 3
-                processed_parts = []
-                for part in reply_parts:
-                    if part.count('?') > 1:
-                        # Only trim a bubble if IT ITSELF contains more than one "?"
-                        trimmed = self._extract_first_thought(part)
-                        if trimmed.strip():
-                            processed_parts.append(trimmed)
-                    else:
-                        if part.strip():
-                            processed_parts.append(part)
+                processed_parts = [p for p in self._light_cleanup(reply_parts) if p.strip()]
                 if not processed_parts:
-                    processed_parts = ["hmm"]
+                    processed_parts = self._parse_llm_segments(_fallback_reply(persona_id))
 
-                # Recompute total_questions across all surviving bubbles
                 total_questions = sum(p.count('?') for p in processed_parts)
-                
+
                 if total_questions > 1 and attempt < max_attempts - 1:
                     logger.warning("Regenerating: turn has %d questions (limit 1). session=%s", total_questions, session_id)
                     continue
-                    
+
                 if total_questions > 1:
-                    # Final attempt failed: resolve multiple questions to enforce the 1-question cap
-                    cleaned_parts = []
-                    has_question = False
-                    for part in processed_parts:
-                        if '?' in part:
-                            if not has_question:
-                                cleaned_parts.append(part)
-                                has_question = True
-                            else:
-                                no_q = part.replace('?', '.')
-                                if no_q.strip():
-                                    cleaned_parts.append(no_q)
-                        else:
-                            cleaned_parts.append(part)
-                    processed_parts = cleaned_parts
-                    
+                    # Retry didn't help — drop the surplus question sentences
+                    # rather than mangling their punctuation.
+                    processed_parts = self._limit_questions(processed_parts, max_questions=1)
+
+
                 processed_parts = self._enforce_max_words(processed_parts, persona_max_words)
                 # Keep the bubble count human: cap at 4, and don't let a terse
                 # persona spray more bubbles than it naturally would this turn.
+                # Surplus bubbles are folded into the last kept one rather than
+                # discarded — slicing them off used to delete the substantive
+                # half of a reply and leave only the throwaway opener.
+                # One bubble of headroom above the target keeps replies from
+                # feeling clipped — unless a hard ceiling is configured, which
+                # is honoured exactly.
                 bubble_cap = min(4, max(target_bubbles + 1, 1))
+                if self._max_bubbles:
+                    bubble_cap = min(bubble_cap, self._max_bubbles)
                 if len(processed_parts) > bubble_cap:
-                    processed_parts = processed_parts[:bubble_cap]
+                    head = processed_parts[: bubble_cap - 1]
+                    tail = " ".join(processed_parts[bubble_cap - 1:]).strip()
+                    processed_parts = head + ([tail] if tail else [])
                 reply_parts = processed_parts
                 break
 
@@ -1048,7 +1375,7 @@ class BaitingAgent:
 
         except Exception as e:
             logger.error("Baiting agent error for session=%s: %s", session_id, e)
-            fb_parts = ["wait what", "my app glitched"]
+            fb_parts = self._parse_llm_segments(_fallback_reply(persona_id))
             delays = self._compute_part_delays(
                 fb_parts, 
                 0, 
@@ -1056,7 +1383,7 @@ class BaitingAgent:
                 fixed_delay=request.fixed_delay_seconds
             )
             return BaitingResponse(
-                reply_text="wait what my app glitched",
+                reply_text=" ".join(fb_parts),
                 reply_parts=fb_parts,
                 response_delay_seconds=delays[0],
                 part_delay_seconds=delays,

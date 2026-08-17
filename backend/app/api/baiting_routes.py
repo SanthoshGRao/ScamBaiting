@@ -91,7 +91,9 @@ def get_baiting_agent() -> BaitingAgent:
             # Single provider handles risk-based model routing internally
             # (gemini-2.5-pro for high-risk, gemini-3.5-flash-lite for medium/low)
             provider = create_llm_provider(provider="gemini", settings=llm_settings)
-            _baiting_agent = BaitingAgent(provider)
+            _baiting_agent = BaitingAgent(
+                provider, max_bubbles=settings.baiting_max_bubbles
+            )
         except Exception as e:
             logger.error("Failed to init BaitingAgent: %s", e)
             raise HTTPException(status_code=500, detail="Baiting agent unavailable")
