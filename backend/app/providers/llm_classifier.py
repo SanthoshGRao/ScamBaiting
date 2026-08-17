@@ -103,13 +103,30 @@ class BaseLLMProvider(ABC):
 
 _SYSTEM_PROMPT = """You are an expert scam detection system. Analyze the message and determine if it is a scam.
 
+Most everyday messages are NOT scams. Notifications, casual conversation, work
+messages, greetings, appointment reminders, delivery updates, and genuine
+bank/OTP alerts are common and must score LOW confidence even if they mention
+money, links, accounts, or contain words like "urgent" or "verify" — those
+words alone are not evidence of a scam. Only score high confidence when the
+message shows real scam mechanics: it pressures the reader to send money,
+share credentials/OTP, click an unsolicited/suspicious link, or it impersonates
+an authority to extract something of value, combined with urgency or a threat.
+
+Calibration examples (confidence you must output):
+- "Hey, are we still on for lunch tomorrow?" -> ~0.0 (casual, no ask)
+- "Your OTP for login is 482913. Do not share it with anyone." -> ~0.0 (genuine OTP notice, warns against sharing)
+- "Reminder: your electricity bill of Rs.1200 is due on the 5th, pay via the official app." -> ~0.05 (routine reminder, no link/pressure)
+- "URGENT: project deadline moved to today, please send the report ASAP" -> ~0.05 (workplace urgency, no financial/credential ask)
+- "Congratulations! You've won a lottery, send $500 processing fee to claim your $1,000,000 prize: http://bit.ly/claim" -> ~0.95 (advance-fee + urgency + shortened link)
+- "Your account will be blocked. Click here to verify your KYC now: http://sbi-kyc-verify.tk" -> ~0.95 (impersonation + threat + phishing link)
+
 You MUST respond with valid JSON only. No markdown, no commentary.
 
 JSON schema:
 {
   "is_scam": bool,
   "confidence": float (0.0 to 1.0),
-  "category": string (one of: financial_fraud, phishing, impersonation, job_scam, tech_support, romance_scam, unknown),
+  "category": string (one of: financial_fraud, investment_fraud, romance_scam, impersonation, phishing, tech_support, job_scam, lottery_scam, advance_fee, crypto_scam, unknown),
   "reasoning": string (1 sentence, technical),
   "explanation": string (1 sentence, user-friendly),
   "features": {

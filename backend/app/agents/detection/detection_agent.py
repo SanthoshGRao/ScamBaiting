@@ -29,6 +29,8 @@ from app.models.detection_models import (
     LLMVerdict,
     NormalizedInput,
     RawMessageInput,
+    RecommendedAction,
+    RiskLevel,
     RuleVerdict,
 )
 from app.agents.detection.input_normalizer import InputNormalizer
@@ -423,11 +425,23 @@ class DetectionAgent:
         w_llm = self._settings.llm_weight
         sender_weight = 0.15
         link_risk_score, domain_flags = analyze_urls(normalized.urls)
-        
-        # Take the maximum confidence from either engine to prevent dilution
-        # and ensure high recall for scam detection.
-        base = max(rule_based.confidence, llm.confidence)
-        merged_conf = min(max(base + (sender_weight * rule_based.sender_score) + (0.1 * link_risk_score), 0.0), 1.0)
+
+        # Weighted ensemble of the two engines. A single uncalibrated LLM spike
+        # (e.g. trigger words in an otherwise benign message) gets pulled back
+        # toward the rule engine's assessment instead of dictating the verdict
+        # outright. Very strong independent rule signals (explicit phishing
+        # pattern, known scam keyword combo) still carry through via the floor,
+        # so recall on rule-confident scams isn't lost.
+        weighted = (w_rule * rule_based.confidence) + (w_llm * llm.confidence)
+        base = max(weighted, rule_based.confidence if rule_based.confidence >= 0.75 else 0.0)
+
+        # Sender reputation and link risk are nudges around a NEUTRAL midpoint,
+        # not flat additions. A brand-new/unknown sender has sender_score=0.5
+        # (neutral) and must contribute exactly 0 — otherwise every message
+        # from every unrecognized sender gets a free confidence boost just for
+        # being unrecognized, which is how routine messages end up flagged.
+        sender_delta = sender_weight * (rule_based.sender_score - 0.5) * 2
+        merged_conf = min(max(base + sender_delta + (0.1 * link_risk_score), 0.0), 1.0)
 
         risk_level = classify_risk(merged_conf, self._settings)
         category = (
